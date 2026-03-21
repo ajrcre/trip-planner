@@ -1,0 +1,108 @@
+import { NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
+
+async function verifyAccess(tripId: string, userId: string) {
+  const trip = await prisma.trip.findUnique({
+    where: { id: tripId },
+    include: { shares: true },
+  })
+
+  if (!trip) return null
+
+  const isOwner = trip.userId === userId
+  const isShared = trip.shares.some((s) => s.userId === userId)
+
+  if (!isOwner && !isShared) return null
+
+  return trip
+}
+
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ tripId: string }> }
+) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const { tripId } = await params
+
+  const trip = await verifyAccess(tripId, session.user.id)
+  if (!trip) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 })
+  }
+
+  const fullTrip = await prisma.trip.findUnique({
+    where: { id: tripId },
+    include: {
+      attractions: true,
+      restaurants: true,
+      dayPlans: {
+        include: { activities: true },
+      },
+      packingItems: true,
+      shoppingItems: true,
+    },
+  })
+
+  return NextResponse.json(fullTrip)
+}
+
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ tripId: string }> }
+) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const { tripId } = await params
+
+  const existing = await prisma.trip.findUnique({ where: { id: tripId } })
+  if (!existing || existing.userId !== session.user.id) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 })
+  }
+
+  const body = await request.json()
+  const { name, destination, startDate, endDate, accommodation, flights, carRental } = body
+
+  const updated = await prisma.trip.update({
+    where: { id: tripId },
+    data: {
+      ...(name !== undefined && { name }),
+      ...(destination !== undefined && { destination }),
+      ...(startDate !== undefined && { startDate: new Date(startDate) }),
+      ...(endDate !== undefined && { endDate: new Date(endDate) }),
+      ...(accommodation !== undefined && { accommodation }),
+      ...(flights !== undefined && { flights }),
+      ...(carRental !== undefined && { carRental }),
+    },
+  })
+
+  return NextResponse.json(updated)
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ tripId: string }> }
+) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const { tripId } = await params
+
+  const existing = await prisma.trip.findUnique({ where: { id: tripId } })
+  if (!existing || existing.userId !== session.user.id) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 })
+  }
+
+  await prisma.trip.delete({ where: { id: tripId } })
+
+  return NextResponse.json({ success: true })
+}
