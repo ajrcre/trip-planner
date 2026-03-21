@@ -35,24 +35,22 @@ export async function PUT(
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
 
-  const attraction = await prisma.attraction.findUnique({
+  const restaurant = await prisma.restaurant.findUnique({
     where: { id },
   })
 
-  if (!attraction || attraction.tripId !== tripId) {
+  if (!restaurant || restaurant.tripId !== tripId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
 
   const body = await request.json()
-  const { status, specialNotes, bookingRequired, nearbyRestaurantId } = body
+  const { status, kidFriendly } = body
 
-  const updated = await prisma.attraction.update({
+  const updated = await prisma.restaurant.update({
     where: { id },
     data: {
       ...(status !== undefined && { status }),
-      ...(specialNotes !== undefined && { specialNotes }),
-      ...(bookingRequired !== undefined && { bookingRequired }),
-      ...(nearbyRestaurantId !== undefined && { nearbyRestaurantId }),
+      ...(kidFriendly !== undefined && { kidFriendly }),
     },
   })
 
@@ -75,15 +73,15 @@ export async function DELETE(
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
 
-  const attraction = await prisma.attraction.findUnique({
+  const restaurant = await prisma.restaurant.findUnique({
     where: { id },
   })
 
-  if (!attraction || attraction.tripId !== tripId) {
+  if (!restaurant || restaurant.tripId !== tripId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
 
-  await prisma.attraction.delete({ where: { id } })
+  await prisma.restaurant.delete({ where: { id } })
 
   return NextResponse.json({ success: true })
 }

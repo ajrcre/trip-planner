@@ -2,35 +2,27 @@
 
 import { useState } from "react"
 
-interface SavedAttraction {
+interface SavedRestaurant {
   id: string
   googlePlaceId: string | null
   name: string
-  description: string | null
+  cuisineType: string | null
   address: string | null
+  lat: number | null
+  lng: number | null
   phone: string | null
   website: string | null
   openingHours: unknown
-  prices: unknown
   ratingGoogle: number | null
   travelTimeMinutes: number | null
-  travelDistanceKm: number | null
-  bookingRequired: boolean
-  specialNotes: string | null
+  kidFriendly: boolean
   status: string
-  nearbyRestaurantId: string | null
 }
 
-interface NearbyRestaurantOption {
-  id: string
-  name: string
-}
-
-interface AttractionTableProps {
+interface RestaurantTableProps {
   tripId: string
-  attractions: SavedAttraction[]
+  restaurants: SavedRestaurant[]
   onUpdate: () => void
-  savedRestaurants?: NearbyRestaurantOption[]
 }
 
 type StatusFilter = "all" | "want" | "maybe"
@@ -48,20 +40,19 @@ const statusColors: Record<string, string> = {
   rejected: "bg-zinc-100 text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400",
 }
 
-export function AttractionTable({
+export function RestaurantTable({
   tripId,
-  attractions,
+  restaurants,
   onUpdate,
-  savedRestaurants = [],
-}: AttractionTableProps) {
+}: RestaurantTableProps) {
   const [filter, setFilter] = useState<StatusFilter>("all")
   const [sortField, setSortField] = useState<SortField>("name")
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
 
-  const filtered = attractions.filter((a) => {
-    if (filter === "all") return a.status !== "rejected"
-    return a.status === filter
+  const filtered = restaurants.filter((r) => {
+    if (filter === "all") return r.status !== "rejected"
+    return r.status === filter
   })
 
   const sorted = [...filtered].sort((a, b) => {
@@ -78,7 +69,7 @@ export function AttractionTable({
   async function handleStatusChange(id: string, status: string) {
     setUpdatingId(id)
     try {
-      await fetch(`/api/trips/${tripId}/attractions/${id}`, {
+      await fetch(`/api/trips/${tripId}/restaurants/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
@@ -91,17 +82,17 @@ export function AttractionTable({
     }
   }
 
-  async function handleNearbyRestaurantChange(id: string, restaurantId: string | null) {
+  async function handleKidFriendlyToggle(id: string, current: boolean) {
     setUpdatingId(id)
     try {
-      await fetch(`/api/trips/${tripId}/attractions/${id}`, {
+      await fetch(`/api/trips/${tripId}/restaurants/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nearbyRestaurantId: restaurantId }),
+        body: JSON.stringify({ kidFriendly: !current }),
       })
       onUpdate()
     } catch (error) {
-      console.error("Nearby restaurant update failed:", error)
+      console.error("Kid friendly toggle failed:", error)
     } finally {
       setUpdatingId(null)
     }
@@ -110,7 +101,7 @@ export function AttractionTable({
   async function handleDelete(id: string) {
     setUpdatingId(id)
     try {
-      await fetch(`/api/trips/${tripId}/attractions/${id}`, {
+      await fetch(`/api/trips/${tripId}/restaurants/${id}`, {
         method: "DELETE",
       })
       onUpdate()
@@ -130,20 +121,11 @@ export function AttractionTable({
     return null
   }
 
-  function formatPrices(prices: unknown): string | null {
-    if (!prices) return null
-    if (typeof prices === "string") return prices
-    if (typeof prices === "object" && prices !== null) {
-      return JSON.stringify(prices)
-    }
-    return null
-  }
-
-  if (attractions.length === 0) {
+  if (restaurants.length === 0) {
     return (
       <div className="flex h-48 items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800/50">
         <span className="text-sm text-zinc-400">
-          עדיין לא נשמרו אטרקציות. עבור ללשונית &quot;גלה&quot; כדי לחפש.
+          עדיין לא נשמרו מסעדות. עבור ללשונית &quot;גלה מסעדות&quot; כדי לחפש.
         </span>
       </div>
     )
@@ -187,83 +169,79 @@ export function AttractionTable({
           <thead className="bg-zinc-50 dark:bg-zinc-800/50">
             <tr>
               <th className="px-3 py-2 text-right font-medium text-zinc-600 dark:text-zinc-400">שם</th>
-              <th className="px-3 py-2 text-right font-medium text-zinc-600 dark:text-zinc-400">תיאור</th>
+              <th className="px-3 py-2 text-right font-medium text-zinc-600 dark:text-zinc-400">סוג אוכל</th>
               <th className="px-3 py-2 text-right font-medium text-zinc-600 dark:text-zinc-400">כתובת</th>
               <th className="px-3 py-2 text-right font-medium text-zinc-600 dark:text-zinc-400">זמן נסיעה</th>
               <th className="px-3 py-2 text-right font-medium text-zinc-600 dark:text-zinc-400">דירוג</th>
-              <th className="px-3 py-2 text-right font-medium text-zinc-600 dark:text-zinc-400">מסעדה קרובה</th>
+              <th className="px-3 py-2 text-right font-medium text-zinc-600 dark:text-zinc-400">מתאים לילדים</th>
               <th className="px-3 py-2 text-right font-medium text-zinc-600 dark:text-zinc-400">סטטוס</th>
               <th className="px-3 py-2 text-right font-medium text-zinc-600 dark:text-zinc-400">פעולות</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100 bg-white dark:divide-zinc-700 dark:bg-zinc-800">
-            {sorted.map((attraction) => (
+            {sorted.map((restaurant) => (
               <>
                 <tr
-                  key={attraction.id}
+                  key={restaurant.id}
                   className="cursor-pointer transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-750"
                   onClick={() =>
                     setExpandedId(
-                      expandedId === attraction.id ? null : attraction.id
+                      expandedId === restaurant.id ? null : restaurant.id
                     )
                   }
                 >
-                  <td className="px-3 py-2 font-medium">{attraction.name}</td>
-                  <td className="max-w-48 truncate px-3 py-2 text-zinc-600 dark:text-zinc-400">
-                    {attraction.description ?? "—"}
+                  <td className="px-3 py-2 font-medium">{restaurant.name}</td>
+                  <td className="px-3 py-2 text-zinc-600 dark:text-zinc-400">
+                    {restaurant.cuisineType ? (
+                      <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700 dark:bg-orange-900/20 dark:text-orange-400">
+                        {restaurant.cuisineType}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                   <td className="max-w-40 truncate px-3 py-2 text-zinc-600 dark:text-zinc-400">
-                    {attraction.address ?? "—"}
+                    {restaurant.address ?? "—"}
                   </td>
                   <td className="px-3 py-2 text-zinc-600 dark:text-zinc-400">
-                    {attraction.travelTimeMinutes
-                      ? `${attraction.travelTimeMinutes} דק׳`
+                    {restaurant.travelTimeMinutes
+                      ? `${restaurant.travelTimeMinutes} דק׳`
                       : "—"}
                   </td>
                   <td className="px-3 py-2 text-zinc-600 dark:text-zinc-400">
-                    {attraction.ratingGoogle
-                      ? `${attraction.ratingGoogle} &#9733;`
+                    {restaurant.ratingGoogle
+                      ? `${restaurant.ratingGoogle} ★`
                       : "—"}
                   </td>
                   <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                    {savedRestaurants.length > 0 ? (
-                      <select
-                        value={attraction.nearbyRestaurantId ?? ""}
-                        onChange={(e) =>
-                          handleNearbyRestaurantChange(
-                            attraction.id,
-                            e.target.value || null
-                          )
-                        }
-                        disabled={updatingId === attraction.id}
-                        className="w-full rounded border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-800"
-                        dir="rtl"
-                      >
-                        <option value="">—</option>
-                        {savedRestaurants.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span className="text-xs text-zinc-400">—</span>
-                    )}
+                    <button
+                      onClick={() =>
+                        handleKidFriendlyToggle(restaurant.id, restaurant.kidFriendly)
+                      }
+                      disabled={updatingId === restaurant.id}
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium transition-colors ${
+                        restaurant.kidFriendly
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
+                          : "bg-zinc-100 text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400"
+                      }`}
+                    >
+                      {restaurant.kidFriendly ? "כן" : "לא"}
+                    </button>
                   </td>
                   <td className="px-3 py-2">
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        statusColors[attraction.status] ?? statusColors.maybe
+                        statusColors[restaurant.status] ?? statusColors.maybe
                       }`}
                     >
-                      {statusLabels[attraction.status] ?? attraction.status}
+                      {statusLabels[restaurant.status] ?? restaurant.status}
                     </span>
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                      {attraction.googlePlaceId && (
+                      {restaurant.googlePlaceId && (
                         <a
-                          href={`https://www.google.com/maps/place/?q=place_id:${attraction.googlePlaceId}`}
+                          href={`https://www.google.com/maps/place/?q=place_id:${restaurant.googlePlaceId}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
@@ -272,8 +250,8 @@ export function AttractionTable({
                         </a>
                       )}
                       <button
-                        onClick={() => handleDelete(attraction.id)}
-                        disabled={updatingId === attraction.id}
+                        onClick={() => handleDelete(restaurant.id)}
+                        disabled={updatingId === restaurant.id}
                         className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                       >
                         מחק
@@ -281,81 +259,59 @@ export function AttractionTable({
                     </div>
                   </td>
                 </tr>
-                {expandedId === attraction.id && (
-                  <tr key={`${attraction.id}-expanded`}>
+                {expandedId === restaurant.id && (
+                  <tr key={`${restaurant.id}-expanded`}>
                     <td colSpan={8} className="bg-zinc-50 px-4 py-3 dark:bg-zinc-900/50">
                       <div className="flex flex-col gap-2 text-sm">
-                        {attraction.phone && (
+                        {restaurant.phone && (
                           <div>
                             <span className="font-medium text-zinc-600 dark:text-zinc-400">טלפון: </span>
-                            <span dir="ltr">{attraction.phone}</span>
+                            <span dir="ltr">{restaurant.phone}</span>
                           </div>
                         )}
-                        {attraction.website && (
+                        {restaurant.website && (
                           <div>
                             <span className="font-medium text-zinc-600 dark:text-zinc-400">אתר: </span>
                             <a
-                              href={attraction.website}
+                              href={restaurant.website}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:underline dark:text-blue-400"
                             >
-                              {attraction.website}
+                              {restaurant.website}
                             </a>
                           </div>
                         )}
-                        {formatOpeningHours(attraction.openingHours) && (
+                        {formatOpeningHours(restaurant.openingHours) && (
                           <div>
                             <span className="font-medium text-zinc-600 dark:text-zinc-400">שעות פתיחה: </span>
-                            <span>{formatOpeningHours(attraction.openingHours)}</span>
+                            <span>{formatOpeningHours(restaurant.openingHours)}</span>
                           </div>
                         )}
-                        {formatPrices(attraction.prices) && (
-                          <div>
-                            <span className="font-medium text-zinc-600 dark:text-zinc-400">מחירים: </span>
-                            <span>{formatPrices(attraction.prices)}</span>
-                          </div>
-                        )}
-                        {attraction.travelDistanceKm && (
-                          <div>
-                            <span className="font-medium text-zinc-600 dark:text-zinc-400">מרחק: </span>
-                            <span>{attraction.travelDistanceKm} ק&quot;מ</span>
-                          </div>
-                        )}
-                        {attraction.specialNotes && (
-                          <div>
-                            <span className="font-medium text-zinc-600 dark:text-zinc-400">הערות: </span>
-                            <span>{attraction.specialNotes}</span>
-                          </div>
-                        )}
-                        <div>
-                          <span className="font-medium text-zinc-600 dark:text-zinc-400">הזמנה מראש: </span>
-                          <span>{attraction.bookingRequired ? "כן" : "לא"}</span>
-                        </div>
                         {/* Status change buttons */}
                         <div className="flex gap-2 pt-2">
-                          {attraction.status !== "want" && (
+                          {restaurant.status !== "want" && (
                             <button
-                              onClick={() => handleStatusChange(attraction.id, "want")}
-                              disabled={updatingId === attraction.id}
+                              onClick={() => handleStatusChange(restaurant.id, "want")}
+                              disabled={updatingId === restaurant.id}
                               className="rounded-lg bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-400"
                             >
                               רוצה
                             </button>
                           )}
-                          {attraction.status !== "maybe" && (
+                          {restaurant.status !== "maybe" && (
                             <button
-                              onClick={() => handleStatusChange(attraction.id, "maybe")}
-                              disabled={updatingId === attraction.id}
+                              onClick={() => handleStatusChange(restaurant.id, "maybe")}
+                              disabled={updatingId === restaurant.id}
                               className="rounded-lg bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400"
                             >
                               אולי
                             </button>
                           )}
-                          {attraction.status !== "rejected" && (
+                          {restaurant.status !== "rejected" && (
                             <button
-                              onClick={() => handleStatusChange(attraction.id, "rejected")}
-                              disabled={updatingId === attraction.id}
+                              onClick={() => handleStatusChange(restaurant.id, "rejected")}
+                              disabled={updatingId === restaurant.id}
                               className="rounded-lg bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-700 dark:text-zinc-400"
                             >
                               לא מתאים
