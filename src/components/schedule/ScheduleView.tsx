@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react"
 import { DayTimeline, type DayPlanData } from "./DayTimeline"
+import { AiAssistant } from "../ai/AiAssistant"
 
 interface Trip {
   id: string
@@ -159,6 +160,9 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
           onUpdate={fetchSchedule}
         />
       )}
+
+      {/* AI Assistant */}
+      <AiAssistant tripId={trip.id} />
     </div>
   )
 }
