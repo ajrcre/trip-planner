@@ -6,6 +6,7 @@ import { DiscoveryPanel } from "@/components/attractions/DiscoveryPanel"
 import { AttractionTable } from "@/components/attractions/AttractionTable"
 import { DiscoveryPanel as RestaurantDiscoveryPanel } from "@/components/restaurants/DiscoveryPanel"
 import { RestaurantTable } from "@/components/restaurants/RestaurantTable"
+import { ScheduleView } from "@/components/schedule/ScheduleView"
 
 interface Trip {
   id: string
@@ -414,6 +415,54 @@ function RestaurantsTab({ trip }: { trip: Trip }) {
   )
 }
 
+function ScheduleTab({ trip }: { trip: Trip }) {
+  const [attractions, setAttractions] = useState<{ id: string; name: string; status: string }[]>([])
+  const [restaurants, setRestaurants] = useState<{ id: string; name: string; status: string }[]>([])
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const [attRes, restRes] = await Promise.all([
+          fetch(`/api/trips/${trip.id}/attractions`),
+          fetch(`/api/trips/${trip.id}/restaurants`),
+        ])
+        if (attRes.ok) {
+          const data = await attRes.json()
+          setAttractions(data.map((a: { id: string; name: string; status: string }) => ({
+            id: a.id,
+            name: a.name,
+            status: a.status,
+          })))
+        }
+        if (restRes.ok) {
+          const data = await restRes.json()
+          setRestaurants(data.map((r: { id: string; name: string; status: string }) => ({
+            id: r.id,
+            name: r.name,
+            status: r.status,
+          })))
+        }
+      } catch (error) {
+        console.error("Failed to fetch data for schedule:", error)
+      }
+    }
+    fetchData()
+  }, [trip.id])
+
+  return (
+    <ScheduleView
+      trip={{
+        id: trip.id,
+        startDate: trip.startDate,
+        endDate: trip.endDate,
+        flights: trip.flights,
+        attractions,
+        restaurants,
+      }}
+    />
+  )
+}
+
 export function TripDashboard({ trip }: { trip: Trip }) {
   const [activeTab, setActiveTab] = useState<TabKey>("overview")
 
@@ -448,7 +497,8 @@ export function TripDashboard({ trip }: { trip: Trip }) {
       {activeTab === "overview" && <OverviewTab trip={trip} />}
       {activeTab === "attractions" && <AttractionsTab trip={trip} />}
       {activeTab === "restaurants" && <RestaurantsTab trip={trip} />}
-      {activeTab !== "overview" && activeTab !== "attractions" && activeTab !== "restaurants" && <PlaceholderTab />}
+      {activeTab === "schedule" && <ScheduleTab trip={trip} />}
+      {activeTab === "lists" && <PlaceholderTab />}
     </div>
   )
 }
