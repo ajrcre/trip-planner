@@ -102,6 +102,8 @@ model Trip {
   startDate   DateTime
   endDate     DateTime
 
+  shareToken  String? @unique
+
   accommodation Json?
   flights Json?
   carRental Json?
