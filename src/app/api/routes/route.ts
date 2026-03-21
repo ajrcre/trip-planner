@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   const body = await request.json()
   const { origin, destination } = body
 
-  if (!origin?.lat || !origin?.lng || !destination?.lat || !destination?.lng) {
+  if (origin?.lat == null || origin?.lng == null || destination?.lat == null || destination?.lng == null) {
     return NextResponse.json(
       { error: "Missing required fields: origin.lat, origin.lng, destination.lat, destination.lng" },
       { status: 400 }

@@ -1,4 +1,8 @@
-const API_KEY = process.env.GOOGLE_MAPS_API_KEY!
+function getApiKey(): string {
+  const key = process.env.GOOGLE_MAPS_API_KEY
+  if (!key) throw new Error("GOOGLE_MAPS_API_KEY is not configured")
+  return key
+}
 
 interface LatLng {
   latitude: number
@@ -69,7 +73,7 @@ export async function searchPlaces(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Goog-Api-Key": API_KEY,
+        "X-Goog-Api-Key": getApiKey(),
         "X-Goog-FieldMask": fieldMask,
       },
       body: JSON.stringify(body),
@@ -98,7 +102,7 @@ export async function getPlaceDetails(
     {
       method: "GET",
       headers: {
-        "X-Goog-Api-Key": API_KEY,
+        "X-Goog-Api-Key": getApiKey(),
         "X-Goog-FieldMask": fieldMask,
       },
     }
@@ -122,7 +126,7 @@ export async function calculateRoute(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Goog-Api-Key": API_KEY,
+        "X-Goog-Api-Key": getApiKey(),
         "X-Goog-FieldMask": "routes.duration,routes.distanceMeters",
       },
       body: JSON.stringify({
