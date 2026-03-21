@@ -7,6 +7,8 @@ import { AttractionTable } from "@/components/attractions/AttractionTable"
 import { DiscoveryPanel as RestaurantDiscoveryPanel } from "@/components/restaurants/DiscoveryPanel"
 import { RestaurantTable } from "@/components/restaurants/RestaurantTable"
 import { ScheduleView } from "@/components/schedule/ScheduleView"
+import { PackingList } from "@/components/lists/PackingList"
+import { ShoppingList } from "@/components/lists/ShoppingList"
 
 interface Trip {
   id: string
@@ -204,10 +206,41 @@ function OverviewTab({ trip }: { trip: Trip }) {
   )
 }
 
-function PlaceholderTab() {
+function ListsTab({ tripId }: { tripId: string }) {
+  const [listTab, setListTab] = useState<"packing" | "shopping">("packing")
+
   return (
-    <div className="flex h-64 items-center justify-center rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
-      <span className="text-lg text-zinc-400">בקרוב</span>
+    <div className="flex flex-col gap-4">
+      {/* Sub-tabs */}
+      <div className="flex gap-1 self-start rounded-lg border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-700 dark:bg-zinc-800">
+        <button
+          onClick={() => setListTab("packing")}
+          className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+            listTab === "packing"
+              ? "bg-white text-blue-600 shadow-sm dark:bg-zinc-700 dark:text-blue-400"
+              : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400"
+          }`}
+        >
+          רשימת ציוד
+        </button>
+        <button
+          onClick={() => setListTab("shopping")}
+          className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+            listTab === "shopping"
+              ? "bg-white text-green-600 shadow-sm dark:bg-zinc-700 dark:text-green-400"
+              : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400"
+          }`}
+        >
+          רשימת קניות
+        </button>
+      </div>
+
+      {/* Content */}
+      {listTab === "packing" ? (
+        <PackingList tripId={tripId} />
+      ) : (
+        <ShoppingList tripId={tripId} />
+      )}
     </div>
   )
 }
@@ -498,7 +531,7 @@ export function TripDashboard({ trip }: { trip: Trip }) {
       {activeTab === "attractions" && <AttractionsTab trip={trip} />}
       {activeTab === "restaurants" && <RestaurantsTab trip={trip} />}
       {activeTab === "schedule" && <ScheduleTab trip={trip} />}
-      {activeTab === "lists" && <PlaceholderTab />}
+      {activeTab === "lists" && <ListsTab tripId={trip.id} />}
     </div>
   )
 }
