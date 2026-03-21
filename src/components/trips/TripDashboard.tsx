@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { TripMap } from "@/components/maps/TripMap"
 
 interface Trip {
   id: string
@@ -15,6 +16,7 @@ interface Trip {
     checkOut?: string
     contact?: string
     bookingReference?: string
+    coordinates?: { lat: number; lng: number }
   } | null
   flights: {
     outbound?: {
@@ -181,10 +183,18 @@ function OverviewTab({ trip }: { trip: Trip }) {
         </div>
       )}
 
-      {/* Map placeholder */}
-      <div className="flex h-64 items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800/50">
-        <span className="text-sm text-zinc-400">מפה - בקרוב</span>
-      </div>
+      {/* Map */}
+      {acc?.coordinates ? (
+        <TripMap
+          center={acc.coordinates}
+          attractions={(trip.attractions as Array<{ lat: number; lng: number; name: string }>) ?? []}
+          restaurants={(trip.restaurants as Array<{ lat: number; lng: number; name: string }>) ?? []}
+        />
+      ) : (
+        <div className="flex h-64 items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800/50">
+          <span className="text-sm text-zinc-400">הוסף כתובת לינה כדי לראות מפה</span>
+        </div>
+      )}
     </div>
   )
 }
