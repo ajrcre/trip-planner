@@ -85,7 +85,13 @@ export async function POST(
     coordinates?: { lat: number; lng: number }
   } | null
 
-  const location = accommodation?.coordinates ?? { lat: 0, lng: 0 }
+  const location = accommodation?.coordinates
+  if (!location) {
+    return NextResponse.json(
+      { error: "הוסף כתובת לינה עם קואורדינטות לפני חיפוש מסעדות" },
+      { status: 400 }
+    )
+  }
   const searchRadius = radius ?? 50000
 
   // Build search query

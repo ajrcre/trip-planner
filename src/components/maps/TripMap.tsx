@@ -64,9 +64,10 @@ export function TripMap({
           })
 
           marker.addListener("click", () => {
-            infoWindow.setContent(
-              `<div style="font-size:14px;font-weight:500;padding:4px 0;">${title}</div>`
-            )
+            const div = document.createElement("div")
+            div.style.cssText = "font-size:14px;font-weight:500;padding:4px 0;"
+            div.textContent = title
+            infoWindow.setContent(div)
             infoWindow.open({ anchor: marker, map })
           })
 
