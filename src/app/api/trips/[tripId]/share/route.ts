@@ -15,8 +15,16 @@ export async function POST(
 
   const { tripId } = await params
 
-  const trip = await prisma.trip.findUnique({ where: { id: tripId } })
-  if (!trip || trip.userId !== session.user.id) {
+  const trip = await prisma.trip.findUnique({
+    where: { id: tripId },
+    include: { shares: true },
+  })
+  if (!trip) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 })
+  }
+  const isOwner = trip.userId === session.user.id
+  const isShared = trip.shares.some((s) => s.userId === session.user.id)
+  if (!isOwner && !isShared) {
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
 
@@ -54,9 +62,14 @@ export async function GET(
 
   const trip = await prisma.trip.findUnique({
     where: { id: tripId },
-    select: { shareToken: true, userId: true },
+    select: { shareToken: true, userId: true, shares: { select: { userId: true } } },
   })
-  if (!trip || trip.userId !== session.user.id) {
+  if (!trip) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 })
+  }
+  const isOwnerGet = trip.userId === session.user.id
+  const isSharedGet = trip.shares.some((s) => s.userId === session.user.id)
+  if (!isOwnerGet && !isSharedGet) {
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
 
@@ -68,4 +81,28 @@ export async function GET(
     token: trip.shareToken,
     url: `/shared/${trip.shareToken}`,
   })
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ tripId: string }> }
+) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const { tripId } = await params
+
+  const trip = await prisma.trip.findUnique({ where: { id: tripId } })
+  if (!trip || trip.userId !== session.user.id) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 })
+  }
+
+  await prisma.trip.update({
+    where: { id: tripId },
+    data: { shareToken: null },
+  })
+
+  return NextResponse.json({ success: true })
 }
