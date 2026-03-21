@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { useParams } from "next/navigation"
+import { TripMap } from "@/components/maps/TripMap"
 
 interface SharedTrip {
   id: string
@@ -268,6 +269,23 @@ export default function SharedTripPage() {
               <InfoRow label="מיקום החזרה" value={trip.carRental.returnLocation} />
               <InfoRow label="פרטים נוספים" value={trip.carRental.additionalDetails} />
             </section>
+          )}
+
+          {/* Map */}
+          {trip.accommodation?.coordinates ? (
+            <TripMap
+              center={trip.accommodation.coordinates}
+              attractions={trip.attractions
+                .filter((a): a is typeof a & { lat: number; lng: number } => a.lat != null && a.lng != null)
+                .map((a) => ({ lat: a.lat, lng: a.lng, name: a.name }))}
+              restaurants={trip.restaurants
+                .filter((r): r is typeof r & { lat: number; lng: number } => r.lat != null && r.lng != null)
+                .map((r) => ({ lat: r.lat, lng: r.lng, name: r.name }))}
+            />
+          ) : (
+            <div className="flex h-64 items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-50">
+              <span className="text-sm text-zinc-400">אין נתוני מיקום לינה להצגת מפה</span>
+            </div>
           )}
 
           {/* Daily Schedule */}
