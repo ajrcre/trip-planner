@@ -34,6 +34,9 @@ interface FamilyProfileFormProps {
     preferredFlightStart: string | null
     preferredFlightEnd: string | null
     pace: string
+    preFlightArrivalMinutes: number
+    carPickupDurationMinutes: number
+    carReturnDurationMinutes: number
   }
 }
 
@@ -44,6 +47,9 @@ export function FamilyProfileForm({ initialData }: FamilyProfileFormProps) {
   const [preferredFlightStart, setPreferredFlightStart] = useState(initialData.preferredFlightStart || "")
   const [preferredFlightEnd, setPreferredFlightEnd] = useState(initialData.preferredFlightEnd || "")
   const [pace, setPace] = useState(initialData.pace)
+  const [preFlightArrivalMinutes, setPreFlightArrivalMinutes] = useState(initialData.preFlightArrivalMinutes)
+  const [carPickupDurationMinutes, setCarPickupDurationMinutes] = useState(initialData.carPickupDurationMinutes)
+  const [carReturnDurationMinutes, setCarReturnDurationMinutes] = useState(initialData.carReturnDurationMinutes)
   const [loading, setLoading] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -72,6 +78,9 @@ export function FamilyProfileForm({ initialData }: FamilyProfileFormProps) {
           preferredFlightStart: preferredFlightStart || undefined,
           preferredFlightEnd: preferredFlightEnd || undefined,
           pace,
+          preFlightArrivalMinutes,
+          carPickupDurationMinutes,
+          carReturnDurationMinutes,
         }),
       })
       if (res.ok) {
@@ -164,6 +173,61 @@ export function FamilyProfileForm({ initialData }: FamilyProfileFormProps) {
               }}
               className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-700"
             />
+          </div>
+        </div>
+      </div>
+
+      {/* Logistics Times */}
+      <div>
+        <label className="mb-2 block text-sm font-semibold">זמני לוגיסטיקה</label>
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-zinc-500 w-48">הגעה לשדה תעופה לפני טיסה:</span>
+            <input
+              type="number"
+              min={30}
+              max={360}
+              step={30}
+              value={preFlightArrivalMinutes}
+              onChange={(e) => {
+                setPreFlightArrivalMinutes(Number(e.target.value))
+                setSaved(false)
+              }}
+              className="w-20 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-700"
+            />
+            <span className="text-sm text-zinc-500">דקות</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-zinc-500 w-48">זמן איסוף רכב שכור:</span>
+            <input
+              type="number"
+              min={15}
+              max={240}
+              step={15}
+              value={carPickupDurationMinutes}
+              onChange={(e) => {
+                setCarPickupDurationMinutes(Number(e.target.value))
+                setSaved(false)
+              }}
+              className="w-20 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-700"
+            />
+            <span className="text-sm text-zinc-500">דקות</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-zinc-500 w-48">זמן החזרת רכב שכור:</span>
+            <input
+              type="number"
+              min={15}
+              max={180}
+              step={15}
+              value={carReturnDurationMinutes}
+              onChange={(e) => {
+                setCarReturnDurationMinutes(Number(e.target.value))
+                setSaved(false)
+              }}
+              className="w-20 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-700"
+            />
+            <span className="text-sm text-zinc-500">דקות</span>
           </div>
         </div>
       </div>
