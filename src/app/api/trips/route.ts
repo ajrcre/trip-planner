@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { geocodeAddress } from "@/lib/google-maps"
+import { normalizeAccommodations } from "@/lib/accommodations"
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -40,6 +42,17 @@ export async function POST(request: Request) {
     )
   }
 
+  const accommodations = normalizeAccommodations(accommodation)
+  const enrichedAccommodations = await Promise.all(
+    accommodations.map(async (acc) => {
+      if (acc.address) {
+        const coords = await geocodeAddress(acc.address)
+        if (coords) return { ...acc, coordinates: coords }
+      }
+      return acc
+    })
+  )
+
   const trip = await prisma.trip.create({
     data: {
       userId: session.user.id,
@@ -47,7 +60,8 @@ export async function POST(request: Request) {
       destination,
       startDate: new Date(startDate),
       endDate: new Date(endDate),
-      accommodation: accommodation || undefined,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      accommodation: enrichedAccommodations.length > 0 ? (enrichedAccommodations as any) : undefined,
       flights: flights || undefined,
       carRental: carRental || undefined,
     },

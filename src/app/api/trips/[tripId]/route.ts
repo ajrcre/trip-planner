@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { geocodeAddress } from "@/lib/google-maps"
+import { normalizeAccommodations } from "@/lib/accommodations"
 import { syncLogisticsActivities } from "@/lib/sync-logistics"
 
 async function verifyAccess(tripId: string, userId: string) {
@@ -72,13 +73,18 @@ export async function PUT(
   const body = await request.json()
   const { name, destination, startDate, endDate, accommodation, flights, carRental } = body
 
-  // Geocode accommodation address if provided
   let enrichedAccommodation = accommodation
-  if (accommodation?.address) {
-    const coords = await geocodeAddress(accommodation.address)
-    if (coords) {
-      enrichedAccommodation = { ...accommodation, coordinates: coords }
-    }
+  if (accommodation !== undefined) {
+    const accommodations = normalizeAccommodations(accommodation)
+    enrichedAccommodation = await Promise.all(
+      accommodations.map(async (acc) => {
+        if (acc.address) {
+          const coords = await geocodeAddress(acc.address)
+          if (coords) return { ...acc, coordinates: coords }
+        }
+        return acc
+      })
+    )
   }
 
   const updated = await prisma.trip.update({
