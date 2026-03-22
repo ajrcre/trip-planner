@@ -453,6 +453,9 @@ function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () => void }
         return mapCenter ? (
           <TripMap
             center={mapCenter}
+            accommodations={accommodations.filter((a) => a.coordinates).map((a) => ({
+              lat: a.coordinates!.lat, lng: a.coordinates!.lng, name: a.name || "לינה"
+            }))}
             attractions={(trip.attractions as Array<{ lat: number; lng: number; name: string }>) ?? []}
             restaurants={(trip.restaurants as Array<{ lat: number; lng: number; name: string }>) ?? []}
           />

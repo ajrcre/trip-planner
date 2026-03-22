@@ -11,6 +11,7 @@ interface MarkerData {
 
 interface TripMapProps {
   center: { lat: number; lng: number }
+  accommodations?: MarkerData[]
   attractions?: MarkerData[]
   restaurants?: MarkerData[]
   zoom?: number
@@ -18,6 +19,7 @@ interface TripMapProps {
 
 export function TripMap({
   center,
+  accommodations = [],
   attractions = [],
   restaurants = [],
   zoom = 13,
@@ -74,8 +76,14 @@ export function TripMap({
           markers.push(marker)
         }
 
-        // Accommodation marker (blue)
-        addMarker(center, "לינה", "#3b82f6")
+        // Accommodation markers (blue)
+        if (accommodations.length > 0) {
+          for (const acc of accommodations) {
+            addMarker({ lat: acc.lat, lng: acc.lng }, acc.name, "#3b82f6")
+          }
+        } else {
+          addMarker(center, "לינה", "#3b82f6")
+        }
 
         // Attraction markers (green)
         for (const attraction of attractions) {
@@ -110,7 +118,7 @@ export function TripMap({
         marker.map = null
       }
     }
-  }, [center, attractions, restaurants, zoom])
+  }, [center, accommodations, attractions, restaurants, zoom])
 
   if (error) {
     return (
