@@ -451,7 +451,7 @@ function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () => void }
       )}
 
       {/* File Upload Extractor */}
-      <FileUploadExtractor tripId={trip.id} onUpdated={onUpdated} />
+      <FileUploadExtractor tripId={trip.id} existingAccommodation={trip.accommodation} onUpdated={onUpdated} />
 
       {/* Map */}
       {(() => {

@@ -2,9 +2,11 @@
 
 import { useState, useRef, useCallback } from "react"
 import type { ExtractedTripDetails } from "@/lib/gemini"
+import { normalizeAccommodations } from "@/lib/accommodations"
 
 interface FileUploadExtractorProps {
   tripId: string
+  existingAccommodation?: unknown
   onUpdated?: () => void
 }
 
@@ -33,7 +35,7 @@ function PreviewField({ label, value }: { label: string; value?: string | null }
   )
 }
 
-export function FileUploadExtractor({ tripId, onUpdated }: FileUploadExtractorProps) {
+export function FileUploadExtractor({ tripId, existingAccommodation, onUpdated }: FileUploadExtractorProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [isExtracting, setIsExtracting] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -122,7 +124,10 @@ export function FileUploadExtractor({ tripId, onUpdated }: FileUploadExtractorPr
     try {
       const body: Record<string, unknown> = {}
       if (extracted.flights) body.flights = extracted.flights
-      if (extracted.accommodation) body.accommodation = extracted.accommodation
+      if (extracted.accommodation) {
+        const existing = normalizeAccommodations(existingAccommodation)
+        body.accommodation = [...existing, ...extracted.accommodation]
+      }
       if (extracted.carRental) body.carRental = extracted.carRental
 
       const res = await fetch(`/api/trips/${tripId}`, {
