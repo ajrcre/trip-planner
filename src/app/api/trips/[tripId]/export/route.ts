@@ -64,7 +64,7 @@ export async function GET(
     destination: trip.destination,
     startDate: trip.startDate.toISOString(),
     endDate: trip.endDate.toISOString(),
-    accommodation: trip.accommodation as TripAccommodation | null,
+    accommodation: trip.accommodation as TripAccommodation[] | null,
     flights: trip.flights as TripFlights | null,
     carRental: trip.carRental as TripCarRental | null,
     attractions: trip.attractions,
