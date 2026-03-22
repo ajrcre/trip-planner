@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { syncLogisticsActivities } from "@/lib/sync-logistics"
 
 async function verifyTripAccess(tripId: string, userId: string) {
   const trip = await prisma.trip.findUnique({
@@ -119,6 +120,9 @@ export async function POST(
       })
     )
   )
+
+  // Sync logistics activities from flight/car data
+  await syncLogisticsActivities(tripId, session.user.id)
 
   // Fetch created plans with relations
   const dayPlans = await prisma.dayPlan.findMany({
