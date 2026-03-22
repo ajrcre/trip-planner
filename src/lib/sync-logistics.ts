@@ -49,15 +49,19 @@ function addMinutes(timeStr: string, minutes: number): string {
   return formatTime(parseTime(timeStr) + minutes)
 }
 
-/** Extract "HH:mm" from an ISO datetime string (UTC) */
+/** Extract "HH:mm" from a datetime string (local time — no timezone suffix) */
 function isoToTime(iso: string): string {
   const d = new Date(iso)
-  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
 }
 
-/** Extract "YYYY-MM-DD" from an ISO datetime string (UTC) */
+/** Extract "YYYY-MM-DD" from a datetime string (local time — no timezone suffix) */
 function isoToDateStr(iso: string): string {
-  return new Date(iso).toISOString().split("T")[0]
+  const d = new Date(iso)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
 }
 
 // === Logistics activity types ===
@@ -112,10 +116,11 @@ export async function syncLogisticsActivities(
     })
   }
 
-  // 4. Build a date-to-dayPlan lookup
+  // 4. Build a date-to-dayPlan lookup (using local time to match flight datetime format)
   const dayPlanByDate = new Map<string, string>()
   for (const dp of trip.dayPlans) {
-    const dateStr = dp.date.toISOString().split("T")[0]
+    const d = dp.date
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
     dayPlanByDate.set(dateStr, dp.id)
   }
 
@@ -225,7 +230,8 @@ export async function syncLogisticsActivities(
       pickupDateStr = isoToDateStr(flights.outbound.arrivalTime)
       pickupTimeStart = isoToTime(flights.outbound.arrivalTime)
     } else {
-      pickupDateStr = trip.startDate.toISOString().split("T")[0]
+      const sd = trip.startDate
+      pickupDateStr = `${sd.getFullYear()}-${String(sd.getMonth() + 1).padStart(2, "0")}-${String(sd.getDate()).padStart(2, "0")}`
     }
 
     const dayPlanId = dayPlanByDate.get(pickupDateStr)
@@ -257,7 +263,8 @@ export async function syncLogisticsActivities(
         preFlightArrivalMinutes + carReturnDurationMinutes
       )
     } else {
-      returnDateStr = trip.endDate.toISOString().split("T")[0]
+      const ed = trip.endDate
+      returnDateStr = `${ed.getFullYear()}-${String(ed.getMonth() + 1).padStart(2, "0")}-${String(ed.getDate()).padStart(2, "0")}`
     }
 
     const dayPlanId = dayPlanByDate.get(returnDateStr)
