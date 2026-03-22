@@ -149,6 +149,39 @@ export async function POST(
   // Sync logistics activities from flight/car data
   await syncLogisticsActivities(tripId, session.user.id)
 
+  // Auto-insert lodging activities
+  const accommodationData = normalizeAccommodations(trip.accommodation)
+  const createdDayPlans = await prisma.dayPlan.findMany({
+    where: { tripId },
+    orderBy: { date: "asc" },
+  })
+
+  for (const dayPlan of createdDayPlans) {
+    const dayDate = dayPlan.date.toISOString().split("T")[0]
+    const dayAccs = getAccommodationsForDay(accommodationData, dayDate)
+    if (dayAccs.length === 0) continue
+
+    const acc = dayAccs[0].accommodation
+    const accName = acc.name ?? "לינה"
+
+    if (dayPlan.dayType === "arrival") {
+      await prisma.activity.create({
+        data: { dayPlanId: dayPlan.id, sortOrder: 900, type: "lodging", timeStart: "21:00", timeEnd: null, notes: accName },
+      })
+    } else if (dayPlan.dayType === "departure") {
+      await prisma.activity.create({
+        data: { dayPlanId: dayPlan.id, sortOrder: 0, type: "lodging", timeStart: "09:00", timeEnd: null, notes: accName },
+      })
+    } else {
+      await prisma.activity.create({
+        data: { dayPlanId: dayPlan.id, sortOrder: 0, type: "lodging", timeStart: "09:00", timeEnd: null, notes: accName },
+      })
+      await prisma.activity.create({
+        data: { dayPlanId: dayPlan.id, sortOrder: 900, type: "lodging", timeStart: "21:00", timeEnd: null, notes: accName },
+      })
+    }
+  }
+
   // Fetch created plans with relations
   const dayPlans = await prisma.dayPlan.findMany({
     where: { tripId },
