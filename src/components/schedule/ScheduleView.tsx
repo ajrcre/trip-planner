@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from "react"
 import { DayTimeline, type DayPlanData } from "./DayTimeline"
+import { ItineraryMap } from "./ItineraryMap"
 import { AiAssistant } from "../ai/AiAssistant"
 import { WeatherForecast } from "./WeatherForecast"
 import type { DailyWeather, HourlyWeather } from "@/lib/weather"
@@ -79,6 +80,13 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [weatherData, setWeatherData] = useState<WeatherResponse | null>(null)
   const [isWeatherLoading, setIsWeatherLoading] = useState(true)
+  const [activeActivityId, setActiveActivityId] = useState<string | null>(null)
+
+  const handleMarkerClick = useCallback((activityId: string) => {
+    setActiveActivityId(activityId)
+    const el = document.getElementById(`activity-${activityId}`)
+    el?.scrollIntoView({ behavior: "smooth", block: "center" })
+  }, [])
 
   // Fetch weather data
   useEffect(() => {
@@ -191,6 +199,29 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
 
   const activePlan = dayPlans.find((d) => d.id === activeDay)
 
+  const activeDayAccommodations = activePlan
+    ? getAccommodationsForDay(accommodations, normalizeDate(activePlan.date)).map(
+        ({ accommodation }) => ({
+          name: accommodation.name ?? "לינה",
+          address: accommodation.address,
+          lat: accommodation.coordinates?.lat,
+          lng: accommodation.coordinates?.lng,
+        })
+      )
+    : []
+
+  const mapAccommodations = activeDayAccommodations.map((a) => ({
+    name: a.name,
+    lat: a.lat,
+    lng: a.lng,
+  }))
+
+  const allDayPlansForMap = dayPlans.map((dp) => ({
+    id: dp.id,
+    date: dp.date,
+    activities: dp.activities,
+  }))
+
   return (
     <div className="flex flex-col gap-4">
       {/* Day tabs */}
@@ -232,40 +263,51 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
         })}
       </div>
 
-      {/* Weather forecast for active day */}
-      {activePlan && (
-        <WeatherForecast
-          dailyWeather={weatherByDate.get(normalizeDate(activePlan.date)) ?? null}
-          hourlyWeather={hourlyByDate.get(normalizeDate(activePlan.date)) ?? null}
-          isNearDate={isWithinTwoWeeks(activePlan.date)}
-          isLoading={isWeatherLoading}
-        />
-      )}
+      {/* Split panel: timeline (right) + map (left) */}
+      <div className="flex flex-col lg:flex-row-reverse gap-4">
+        {/* Timeline panel (right side on desktop) */}
+        <div className="flex-1 lg:max-w-[55%] flex flex-col gap-4">
+          {/* Weather forecast for active day */}
+          {activePlan && (
+            <WeatherForecast
+              dailyWeather={weatherByDate.get(normalizeDate(activePlan.date)) ?? null}
+              hourlyWeather={hourlyByDate.get(normalizeDate(activePlan.date)) ?? null}
+              isNearDate={isWithinTwoWeeks(activePlan.date)}
+              isLoading={isWeatherLoading}
+            />
+          )}
 
-      {/* Active day timeline */}
-      {activePlan && (
-        <DayTimeline
-          tripId={trip.id}
-          dayPlan={activePlan}
-          attractions={trip.attractions}
-          restaurants={trip.restaurants}
-          accommodations={
-            activePlan
-              ? getAccommodationsForDay(accommodations, normalizeDate(activePlan.date))
-                  .map(({ accommodation }) => ({
-                    name: accommodation.name ?? "לינה",
-                    address: accommodation.address,
-                    lat: accommodation.coordinates?.lat,
-                    lng: accommodation.coordinates?.lng,
-                  }))
-              : []
-          }
-          onUpdate={fetchSchedule}
-        />
-      )}
+          {/* Active day timeline */}
+          {activePlan && (
+            <DayTimeline
+              tripId={trip.id}
+              dayPlan={activePlan}
+              attractions={trip.attractions}
+              restaurants={trip.restaurants}
+              accommodations={activeDayAccommodations}
+              onUpdate={fetchSchedule}
+              activeActivityId={activeActivityId}
+              onActivityHover={setActiveActivityId}
+            />
+          )}
 
-      {/* AI Assistant */}
-      <AiAssistant tripId={trip.id} />
+          {/* AI Assistant */}
+          <AiAssistant tripId={trip.id} />
+        </div>
+
+        {/* Map panel (left side on desktop) */}
+        <div className="lg:max-w-[45%] lg:min-w-[45%] lg:sticky lg:top-4 lg:self-start">
+          {activePlan && (
+            <ItineraryMap
+              activities={activePlan.activities}
+              allDayPlans={allDayPlansForMap}
+              activeActivityId={activeActivityId}
+              onMarkerClick={handleMarkerClick}
+              accommodations={mapAccommodations}
+            />
+          )}
+        </div>
+      </div>
     </div>
   )
 }

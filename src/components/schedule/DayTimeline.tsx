@@ -29,6 +29,8 @@ interface DayTimelineProps {
   restaurants: RestaurantOption[]
   accommodations: { name: string; address?: string; lat?: number; lng?: number }[]
   onUpdate: () => void
+  activeActivityId?: string | null
+  onActivityHover?: (activityId: string | null) => void
 }
 
 const activityTypes = [
@@ -47,6 +49,8 @@ export function DayTimeline({
   restaurants,
   accommodations,
   onUpdate,
+  activeActivityId,
+  onActivityHover,
 }: DayTimelineProps) {
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [addType, setAddType] = useState("attraction")
@@ -233,7 +237,15 @@ export function DayTimeline({
       ) : (
         <div className="flex flex-col gap-2">
           {dayPlan.activities.map((activity, index) => (
-            <div key={activity.id} className="flex flex-col gap-2">
+            <div
+              key={activity.id}
+              id={`activity-${activity.id}`}
+              className={`flex flex-col gap-2 transition-all ${
+                activeActivityId === activity.id ? "ring-2 ring-blue-400 rounded-lg" : ""
+              }`}
+              onMouseEnter={() => onActivityHover?.(activity.id)}
+              onMouseLeave={() => onActivityHover?.(null)}
+            >
               <ActivityCard
                 activity={activity}
                 onEdit={handleEditActivity}
