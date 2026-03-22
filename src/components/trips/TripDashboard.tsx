@@ -119,6 +119,8 @@ function EditableField({
   )
 }
 
+let _nextDashId = 1
+
 function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () => void }) {
   const accommodations = normalizeAccommodations(trip.accommodation)
   const flights = trip.flights
@@ -147,6 +149,7 @@ function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () => void }
 
   const [editAccommodations, setEditAccommodations] = useState(
     accommodations.map((a) => ({
+      _id: _nextDashId++,
       name: a.name || "",
       address: a.address || "",
       checkIn: a.checkIn || "",
@@ -182,6 +185,7 @@ function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () => void }
     })
     setEditAccommodations(
       accommodations.map((a) => ({
+        _id: _nextDashId++,
         name: a.name || "",
         address: a.address || "",
         checkIn: a.checkIn || "",
@@ -203,7 +207,9 @@ function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () => void }
     setIsSaving(true)
     try {
       const hasFlights = Object.values(editFlights.outbound).some(Boolean) || Object.values(editFlights.return).some(Boolean)
-      const validAccommodations = editAccommodations.filter((a) => Object.values(a).some(Boolean))
+      const validAccommodations = editAccommodations
+        .filter((a) => a.name || a.address || a.checkIn || a.checkOut || a.contact || a.bookingReference)
+        .map(({ _id, ...rest }) => rest)
       const hasCar = Object.values(editCar).some(Boolean)
 
       const body: Record<string, unknown> = {}
@@ -266,7 +272,7 @@ function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () => void }
           <h3 className="mb-4 text-lg font-semibold">לינה</h3>
           <div className="flex flex-col gap-4">
             {editAccommodations.map((acc, idx) => (
-              <div key={idx} className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-600 relative">
+              <div key={acc._id} className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-600 relative">
                 {editAccommodations.length > 1 && (
                   <button
                     type="button"
@@ -288,7 +294,7 @@ function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () => void }
             ))}
             <button
               type="button"
-              onClick={() => setEditAccommodations((prev) => [...prev, { name: "", address: "", checkIn: "", checkOut: "", contact: "", bookingReference: "" }])}
+              onClick={() => setEditAccommodations((prev) => [...prev, { _id: _nextDashId++, name: "", address: "", checkIn: "", checkOut: "", contact: "", bookingReference: "" }])}
               className="self-start rounded-lg border border-dashed border-zinc-300 px-4 py-2 text-sm text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-600 dark:text-zinc-400"
             >
               + הוסף לינה

@@ -2,7 +2,8 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { searchPlaces } from "@/lib/google-maps"
+import { searchPlaces, calculateRoute } from "@/lib/google-maps"
+import { normalizeAccommodations } from "@/lib/accommodations"
 
 async function verifyTripAccess(tripId: string, userId: string) {
   const trip = await prisma.trip.findUnique({
@@ -81,11 +82,10 @@ export async function POST(
   }
 
   // Get accommodation coordinates for location bias
-  const accommodation = trip.accommodation as {
-    coordinates?: { lat: number; lng: number }
-  } | null
+  const accommodations = normalizeAccommodations(trip.accommodation)
+  const accommodationWithCoords = accommodations.find((a) => a.coordinates)
 
-  const location = accommodation?.coordinates
+  const location = accommodationWithCoords?.coordinates
   if (!location) {
     return NextResponse.json(
       { error: "הוסף כתובת לינה עם קואורדינטות לפני חיפוש מסעדות" },
@@ -106,8 +106,8 @@ export async function POST(
       typeString
     )
 
-    // Return basic results (max 20)
-    const enriched = results.slice(0, 20).map((place) => ({
+    // Map basic results (max 20)
+    const places = results.slice(0, 20).map((place) => ({
       googlePlaceId: place.id,
       name: place.displayName?.text ?? "",
       description: place.editorialSummary?.text ?? null,
@@ -119,7 +119,29 @@ export async function POST(
       photos: place.photos?.map((p) => p.name) ?? [],
       types: place.types ?? [],
       cuisineType: mapCuisineType(place.types ?? []),
+      websiteUri: place.websiteUri ?? null,
+      openingHours: place.regularOpeningHours?.weekdayDescriptions ?? null,
+      travelTimeMinutes: null as number | null,
+      distanceKm: null as number | null,
     }))
+
+    // Calculate travel times from accommodation in parallel
+    const routePromises = places.map(async (place) => {
+      if (place.lat == null || place.lng == null) return place
+      try {
+        const route = await calculateRoute(
+          { lat: location.lat, lng: location.lng },
+          { lat: place.lat, lng: place.lng }
+        )
+        place.travelTimeMinutes = route.durationMinutes
+        place.distanceKm = route.distanceKm
+      } catch {
+        // Travel time unavailable
+      }
+      return place
+    })
+
+    const enriched = await Promise.all(routePromises)
 
     return NextResponse.json(enriched)
   } catch (error) {

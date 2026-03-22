@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 
 interface CollapsibleSectionProps {
@@ -57,6 +57,7 @@ function InputField({
 }
 
 interface AccommodationFormData {
+  _id: number
   name: string
   address: string
   checkIn: string
@@ -65,8 +66,9 @@ interface AccommodationFormData {
   bookingReference: string
 }
 
-const emptyAccommodation: AccommodationFormData = {
-  name: "", address: "", checkIn: "", checkOut: "", contact: "", bookingReference: ""
+let _nextFormId = 1
+function makeEmptyAccommodation(): AccommodationFormData {
+  return { _id: _nextFormId++, name: "", address: "", checkIn: "", checkOut: "", contact: "", bookingReference: "" }
 }
 
 export function TripForm() {
@@ -80,7 +82,8 @@ export function TripForm() {
   const [endDate, setEndDate] = useState("")
 
   // Accommodation
-  const [accommodations, setAccommodations] = useState<AccommodationFormData[]>([{ ...emptyAccommodation }])
+  const nextIdRef = useRef(100)
+  const [accommodations, setAccommodations] = useState<AccommodationFormData[]>([makeEmptyAccommodation()])
 
   // Flights
   const [outFlightNum, setOutFlightNum] = useState("")
@@ -107,6 +110,7 @@ export function TripForm() {
     try {
       const accommodationData = accommodations
         .filter((a) => a.name || a.address || a.checkIn || a.checkOut || a.contact || a.bookingReference)
+        .map(({ _id, ...rest }) => rest)
       const accommodation = accommodationData.length > 0 ? accommodationData : undefined
 
       const flights =
@@ -179,7 +183,7 @@ export function TripForm() {
       <CollapsibleSection title="לינה">
         <div className="flex flex-col gap-4">
           {accommodations.map((acc, idx) => (
-            <div key={idx} className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-600 relative">
+            <div key={acc._id} className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-600 relative">
               {accommodations.length > 1 && (
                 <button
                   type="button"
@@ -201,7 +205,7 @@ export function TripForm() {
           ))}
           <button
             type="button"
-            onClick={() => setAccommodations((prev) => [...prev, { ...emptyAccommodation }])}
+            onClick={() => setAccommodations((prev) => [...prev, makeEmptyAccommodation()])}
             className="self-start rounded-lg border border-dashed border-zinc-300 px-4 py-2 text-sm text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-600 dark:text-zinc-400"
           >
             + הוסף לינה

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { calculateRoute } from "@/lib/google-maps"
+import { normalizeAccommodations } from "@/lib/accommodations"
 
 async function verifyTripAccess(tripId: string, userId: string) {
   const trip = await prisma.trip.findUnique({
@@ -83,13 +84,12 @@ export async function POST(
   let travelTimeMinutes: number | null = null
   let travelDistanceKm: number | null = null
 
-  const accommodation = trip.accommodation as {
-    coordinates?: { lat: number; lng: number }
-  } | null
+  const accommodations = normalizeAccommodations(trip.accommodation)
+  const accommodationWithCoords = accommodations.find((a) => a.coordinates)
 
-  if (accommodation?.coordinates && lat && lng) {
+  if (accommodationWithCoords?.coordinates && lat && lng) {
     try {
-      const route = await calculateRoute(accommodation.coordinates, {
+      const route = await calculateRoute(accommodationWithCoords.coordinates, {
         lat,
         lng,
       })

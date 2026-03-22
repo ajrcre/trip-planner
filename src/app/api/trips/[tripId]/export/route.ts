@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { generateTripDocx } from "@/lib/export-docx"
+import { normalizeAccommodations } from "@/lib/accommodations"
 
 export async function GET(
   _request: Request,
@@ -64,7 +65,7 @@ export async function GET(
     destination: trip.destination,
     startDate: trip.startDate.toISOString(),
     endDate: trip.endDate.toISOString(),
-    accommodation: trip.accommodation as TripAccommodation[] | null,
+    accommodation: normalizeAccommodations(trip.accommodation),
     flights: trip.flights as TripFlights | null,
     carRental: trip.carRental as TripCarRental | null,
     attractions: trip.attractions,
