@@ -9,8 +9,12 @@ import {
   WidthType,
   AlignmentType,
   BorderStyle,
+  ShadingType,
   Packer,
 } from "docx"
+
+// A4 page: 11906 DXA wide, 1440 DXA margins each side = 9026 DXA content width
+const CONTENT_WIDTH = 9026
 
 interface FlightInfo {
   flightNumber?: string
@@ -25,14 +29,14 @@ interface TripData {
   destination: string
   startDate: string
   endDate: string
-  accommodation: {
+  accommodation: Array<{
     name?: string
     address?: string
     checkIn?: string
     checkOut?: string
     contact?: string
     bookingReference?: string
-  } | null
+  }> | null
   flights: {
     outbound?: FlightInfo
     return?: FlightInfo
@@ -122,16 +126,22 @@ function createHeading(text: string, level: typeof HeadingLevel[keyof typeof Hea
   })
 }
 
+const cellBorder = { style: BorderStyle.SINGLE, size: 1, color: "999999" } as const
 const cellBorders = {
-  top: { style: BorderStyle.SINGLE, size: 1, color: "999999" },
-  bottom: { style: BorderStyle.SINGLE, size: 1, color: "999999" },
-  left: { style: BorderStyle.SINGLE, size: 1, color: "999999" },
-  right: { style: BorderStyle.SINGLE, size: 1, color: "999999" },
+  top: cellBorder,
+  bottom: cellBorder,
+  left: cellBorder,
+  right: cellBorder,
 } as const
 
-function createTableCell(text: string, isHeader = false): TableCell {
+const cellMargins = { top: 60, bottom: 60, left: 80, right: 80 }
+
+function createTableCell(text: string, widthDxa: number, isHeader = false): TableCell {
   return new TableCell({
     borders: cellBorders,
+    width: { size: widthDxa, type: WidthType.DXA },
+    margins: cellMargins,
+    shading: isHeader ? { fill: "E8E8E8", type: ShadingType.CLEAR } : undefined,
     children: [
       new Paragraph({
         bidirectional: true,
@@ -141,7 +151,8 @@ function createTableCell(text: string, isHeader = false): TableCell {
             text,
             bold: isHeader,
             rightToLeft: true,
-            size: isHeader ? 22 : 20,
+            size: isHeader ? 20 : 18,
+            font: "Arial",
           }),
         ],
       }),
@@ -207,16 +218,25 @@ function buildFlightSection(flights: TripData["flights"]): Paragraph[] {
   return paragraphs
 }
 
-function buildAccommodationSection(acc: TripData["accommodation"]): Paragraph[] {
-  if (!acc || (!acc.name && !acc.address)) return []
+function buildAccommodationSection(accommodations: TripData["accommodation"]): Paragraph[] {
+  const accs = (accommodations ?? []).filter((a) => a.name || a.address)
+  if (accs.length === 0) return []
   const paragraphs: Paragraph[] = [createHeading("לינה", HeadingLevel.HEADING_2)]
 
-  if (acc.name) paragraphs.push(createInfoParagraph("שם", acc.name))
-  if (acc.address) paragraphs.push(createInfoParagraph("כתובת", acc.address))
-  if (acc.checkIn) paragraphs.push(createInfoParagraph("צ'ק-אין", formatDateTime(acc.checkIn)))
-  if (acc.checkOut) paragraphs.push(createInfoParagraph("צ'ק-אאוט", formatDateTime(acc.checkOut)))
-  if (acc.contact) paragraphs.push(createInfoParagraph("פרטי קשר", acc.contact))
-  if (acc.bookingReference) paragraphs.push(createInfoParagraph("מספר הזמנה", acc.bookingReference))
+  for (const acc of accs) {
+    if (accs.length > 1 && acc.name) {
+      paragraphs.push(new Paragraph({
+        children: [new TextRun({ text: acc.name, bold: true, size: 22 })],
+      }))
+    }
+    if (acc.name && accs.length === 1) paragraphs.push(createInfoParagraph("שם", acc.name))
+    if (acc.address) paragraphs.push(createInfoParagraph("כתובת", acc.address))
+    if (acc.checkIn) paragraphs.push(createInfoParagraph("צ'ק-אין", formatDateTime(acc.checkIn)))
+    if (acc.checkOut) paragraphs.push(createInfoParagraph("צ'ק-אאוט", formatDateTime(acc.checkOut)))
+    if (acc.contact) paragraphs.push(createInfoParagraph("פרטי קשר", acc.contact))
+    if (acc.bookingReference) paragraphs.push(createInfoParagraph("מספר הזמנה", acc.bookingReference))
+    if (accs.length > 1) paragraphs.push(new Paragraph({ text: "" }))
+  }
 
   paragraphs.push(new Paragraph({ text: "" }))
   return paragraphs
@@ -294,16 +314,9 @@ function buildAttractionsSection(attractions: TripData["attractions"]): (Paragra
   if (!attractions || attractions.length === 0) return []
   const elements: (Paragraph | Table)[] = [createHeading("אטרקציות", HeadingLevel.HEADING_2)]
 
-  const headerRow = new TableRow({
-    children: [
-      createTableCell("שם", true),
-      createTableCell("כתובת", true),
-      createTableCell("טלפון", true),
-      createTableCell("דירוג", true),
-      createTableCell("סטטוס", true),
-      createTableCell("הערות", true),
-    ],
-  })
+  // Column widths in DXA - must sum to CONTENT_WIDTH (9026)
+  // name: 2200, address: 2400, phone: 1100, rating: 700, status: 900, notes: 1726
+  const colWidths = [2200, 2400, 1100, 700, 900, 1726]
 
   const statusMap: Record<string, string> = {
     approved: "מאושר",
@@ -311,22 +324,34 @@ function buildAttractionsSection(attractions: TripData["attractions"]): (Paragra
     rejected: "נדחה",
   }
 
+  const headerRow = new TableRow({
+    children: [
+      createTableCell("שם", colWidths[0], true),
+      createTableCell("כתובת", colWidths[1], true),
+      createTableCell("טלפון", colWidths[2], true),
+      createTableCell("דירוג", colWidths[3], true),
+      createTableCell("סטטוס", colWidths[4], true),
+      createTableCell("הערות", colWidths[5], true),
+    ],
+  })
+
   const dataRows = attractions.map(
     (a) =>
       new TableRow({
         children: [
-          createTableCell(a.name),
-          createTableCell(a.address || ""),
-          createTableCell(a.phone || ""),
-          createTableCell(a.ratingGoogle ? String(a.ratingGoogle) : ""),
-          createTableCell(statusMap[a.status] || a.status),
+          createTableCell(a.name, colWidths[0]),
+          createTableCell(a.address || "", colWidths[1]),
+          createTableCell(a.phone || "", colWidths[2]),
+          createTableCell(a.ratingGoogle ? String(a.ratingGoogle) : "", colWidths[3]),
+          createTableCell(statusMap[a.status] || a.status, colWidths[4]),
           createTableCell(
             [
               a.bookingRequired ? "דורש הזמנה" : "",
               a.specialNotes || "",
             ]
               .filter(Boolean)
-              .join(", ")
+              .join(", "),
+            colWidths[5]
           ),
         ],
       })
@@ -334,7 +359,9 @@ function buildAttractionsSection(attractions: TripData["attractions"]): (Paragra
 
   elements.push(
     new Table({
-      width: { size: 100, type: WidthType.PERCENTAGE },
+      visuallyRightToLeft: true,
+      width: { size: CONTENT_WIDTH, type: WidthType.DXA },
+      columnWidths: colWidths,
       rows: [headerRow, ...dataRows],
     })
   )
@@ -347,17 +374,9 @@ function buildRestaurantsSection(restaurants: TripData["restaurants"]): (Paragra
   if (!restaurants || restaurants.length === 0) return []
   const elements: (Paragraph | Table)[] = [createHeading("מסעדות", HeadingLevel.HEADING_2)]
 
-  const headerRow = new TableRow({
-    children: [
-      createTableCell("שם", true),
-      createTableCell("סוג מטבח", true),
-      createTableCell("כתובת", true),
-      createTableCell("טלפון", true),
-      createTableCell("דירוג", true),
-      createTableCell("ידידותי לילדים", true),
-      createTableCell("סטטוס", true),
-    ],
-  })
+  // Column widths in DXA - must sum to CONTENT_WIDTH (9026)
+  // name: 1800, cuisine: 1200, address: 1900, phone: 1100, rating: 700, kidFriendly: 1100, status: 1226
+  const colWidths = [1800, 1200, 1900, 1100, 700, 1100, 1226]
 
   const statusMap: Record<string, string> = {
     approved: "מאושר",
@@ -365,24 +384,38 @@ function buildRestaurantsSection(restaurants: TripData["restaurants"]): (Paragra
     rejected: "נדחה",
   }
 
+  const headerRow = new TableRow({
+    children: [
+      createTableCell("שם", colWidths[0], true),
+      createTableCell("סוג מטבח", colWidths[1], true),
+      createTableCell("כתובת", colWidths[2], true),
+      createTableCell("טלפון", colWidths[3], true),
+      createTableCell("דירוג", colWidths[4], true),
+      createTableCell("ידידותי לילדים", colWidths[5], true),
+      createTableCell("סטטוס", colWidths[6], true),
+    ],
+  })
+
   const dataRows = restaurants.map(
     (r) =>
       new TableRow({
         children: [
-          createTableCell(r.name),
-          createTableCell(r.cuisineType || ""),
-          createTableCell(r.address || ""),
-          createTableCell(r.phone || ""),
-          createTableCell(r.ratingGoogle ? String(r.ratingGoogle) : ""),
-          createTableCell(r.kidFriendly ? "כן" : "לא"),
-          createTableCell(statusMap[r.status] || r.status),
+          createTableCell(r.name, colWidths[0]),
+          createTableCell(r.cuisineType || "", colWidths[1]),
+          createTableCell(r.address || "", colWidths[2]),
+          createTableCell(r.phone || "", colWidths[3]),
+          createTableCell(r.ratingGoogle ? String(r.ratingGoogle) : "", colWidths[4]),
+          createTableCell(r.kidFriendly ? "כן" : "לא", colWidths[5]),
+          createTableCell(statusMap[r.status] || r.status, colWidths[6]),
         ],
       })
   )
 
   elements.push(
     new Table({
-      width: { size: 100, type: WidthType.PERCENTAGE },
+      visuallyRightToLeft: true,
+      width: { size: CONTENT_WIDTH, type: WidthType.DXA },
+      columnWidths: colWidths,
       rows: [headerRow, ...dataRows],
     })
   )
@@ -479,7 +512,7 @@ function buildShoppingSection(items: TripData["shoppingItems"]): Paragraph[] {
 
 export async function generateTripDocx(trip: TripData): Promise<Buffer> {
   const children: (Paragraph | Table)[] = [
-    // Title
+    // Title - centered
     new Paragraph({
       heading: HeadingLevel.TITLE,
       bidirectional: true,
@@ -490,13 +523,14 @@ export async function generateTripDocx(trip: TripData): Promise<Buffer> {
           bold: true,
           rightToLeft: true,
           size: 36,
+          font: "Arial",
         }),
       ],
     }),
-    // Subtitle with destination and dates
+    // Subtitle - right-aligned
     new Paragraph({
       bidirectional: true,
-      alignment: AlignmentType.CENTER,
+      alignment: AlignmentType.RIGHT,
       spacing: { after: 400 },
       children: [
         new TextRun({
@@ -504,6 +538,7 @@ export async function generateTripDocx(trip: TripData): Promise<Buffer> {
           rightToLeft: true,
           size: 24,
           color: "666666",
+          font: "Arial",
         }),
       ],
     }),
@@ -519,8 +554,68 @@ export async function generateTripDocx(trip: TripData): Promise<Buffer> {
   ]
 
   const doc = new Document({
+    styles: {
+      default: {
+        document: {
+          run: { font: "Arial", size: 22, rightToLeft: true },
+          paragraph: { alignment: AlignmentType.RIGHT },
+        },
+      },
+      paragraphStyles: [
+        {
+          id: "Normal",
+          name: "Normal",
+          run: { font: "Arial", size: 22, rightToLeft: true },
+          paragraph: { alignment: AlignmentType.RIGHT },
+        },
+        {
+          id: "Heading1",
+          name: "Heading 1",
+          basedOn: "Normal",
+          next: "Normal",
+          quickFormat: true,
+          run: { size: 32, bold: true, font: "Arial", rightToLeft: true },
+          paragraph: { alignment: AlignmentType.RIGHT, spacing: { before: 240, after: 120 } },
+        },
+        {
+          id: "Heading2",
+          name: "Heading 2",
+          basedOn: "Normal",
+          next: "Normal",
+          quickFormat: true,
+          run: { size: 28, bold: true, font: "Arial", rightToLeft: true },
+          paragraph: { alignment: AlignmentType.RIGHT, spacing: { before: 200, after: 100 } },
+        },
+        {
+          id: "Title",
+          name: "Title",
+          basedOn: "Normal",
+          next: "Normal",
+          quickFormat: true,
+          run: { size: 36, bold: true, font: "Arial", rightToLeft: true },
+          paragraph: { alignment: AlignmentType.CENTER },
+        },
+        {
+          id: "ListParagraph",
+          name: "List Paragraph",
+          basedOn: "Normal",
+          quickFormat: true,
+          run: { font: "Arial", rightToLeft: true },
+          paragraph: { alignment: AlignmentType.RIGHT },
+        },
+      ],
+    },
     sections: [
       {
+        properties: {
+          page: {
+            size: {
+              width: 11906,  // A4
+              height: 16838,
+            },
+            margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+          },
+        },
         children,
       },
     ],
