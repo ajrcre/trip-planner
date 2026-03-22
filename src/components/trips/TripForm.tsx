@@ -56,6 +56,19 @@ function InputField({
   )
 }
 
+interface AccommodationFormData {
+  name: string
+  address: string
+  checkIn: string
+  checkOut: string
+  contact: string
+  bookingReference: string
+}
+
+const emptyAccommodation: AccommodationFormData = {
+  name: "", address: "", checkIn: "", checkOut: "", contact: "", bookingReference: ""
+}
+
 export function TripForm() {
   const router = useRouter()
   const [submitting, setSubmitting] = useState(false)
@@ -67,19 +80,6 @@ export function TripForm() {
   const [endDate, setEndDate] = useState("")
 
   // Accommodation
-  interface AccommodationFormData {
-    name: string
-    address: string
-    checkIn: string
-    checkOut: string
-    contact: string
-    bookingReference: string
-  }
-
-  const emptyAccommodation: AccommodationFormData = {
-    name: "", address: "", checkIn: "", checkOut: "", contact: "", bookingReference: ""
-  }
-
   const [accommodations, setAccommodations] = useState<AccommodationFormData[]>([{ ...emptyAccommodation }])
 
   // Flights
