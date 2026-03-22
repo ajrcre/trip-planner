@@ -14,6 +14,7 @@ export interface ActivityData {
   travelTimeToNextMinutes: number | null
   attraction: { id: string; name: string } | null
   restaurant: { id: string; name: string } | null
+  drivingTimesFromLodging?: { accommodationName: string; minutes: number }[]
 }
 
 const typeConfig: Record<string, { icon: string; label: string }> = {
@@ -148,6 +149,28 @@ export function ActivityCard({ activity, onEdit, onDelete }: ActivityCardProps) 
                 {activity.timeEnd ?? ""}
               </span>
             )}
+
+            {/* Driving time from lodging — only for place-based activities */}
+            {activity.drivingTimesFromLodging &&
+              activity.drivingTimesFromLodging.length > 0 &&
+              !["travel", "rest", "flight_departure", "flight_arrival", "car_pickup", "car_return"].includes(activity.type) && (
+                <div className="flex flex-wrap gap-1.5">
+                  {activity.drivingTimesFromLodging.map((dt, i) => (
+                    <span
+                      key={i}
+                      className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+                      title={`נסיעה מ${dt.accommodationName}`}
+                    >
+                      🏨→🚗 {dt.minutes} דק׳
+                      {activity.drivingTimesFromLodging!.length > 1 && (
+                        <span className="text-blue-400 dark:text-blue-500">
+                          ({dt.accommodationName})
+                        </span>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              )}
 
             {activity.notes && activity.type !== "custom" && (
               <span className="text-xs text-zinc-500 dark:text-zinc-400">
