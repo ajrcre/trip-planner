@@ -67,12 +67,20 @@ export function TripForm() {
   const [endDate, setEndDate] = useState("")
 
   // Accommodation
-  const [accName, setAccName] = useState("")
-  const [accAddress, setAccAddress] = useState("")
-  const [accCheckIn, setAccCheckIn] = useState("")
-  const [accCheckOut, setAccCheckOut] = useState("")
-  const [accContact, setAccContact] = useState("")
-  const [accBookingRef, setAccBookingRef] = useState("")
+  interface AccommodationFormData {
+    name: string
+    address: string
+    checkIn: string
+    checkOut: string
+    contact: string
+    bookingReference: string
+  }
+
+  const emptyAccommodation: AccommodationFormData = {
+    name: "", address: "", checkIn: "", checkOut: "", contact: "", bookingReference: ""
+  }
+
+  const [accommodations, setAccommodations] = useState<AccommodationFormData[]>([{ ...emptyAccommodation }])
 
   // Flights
   const [outFlightNum, setOutFlightNum] = useState("")
@@ -97,17 +105,9 @@ export function TripForm() {
     setSubmitting(true)
 
     try {
-      const accommodation =
-        accName || accAddress || accCheckIn || accCheckOut || accContact || accBookingRef
-          ? {
-              name: accName,
-              address: accAddress,
-              checkIn: accCheckIn,
-              checkOut: accCheckOut,
-              contact: accContact,
-              bookingReference: accBookingRef,
-            }
-          : undefined
+      const accommodationData = accommodations
+        .filter((a) => a.name || a.address || a.checkIn || a.checkOut || a.contact || a.bookingReference)
+      const accommodation = accommodationData.length > 0 ? accommodationData : undefined
 
       const flights =
         outFlightNum || retFlightNum
@@ -177,13 +177,35 @@ export function TripForm() {
 
       {/* Section 2: Accommodation */}
       <CollapsibleSection title="לינה">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <InputField label="שם" value={accName} onChange={setAccName} />
-          <InputField label="כתובת" value={accAddress} onChange={setAccAddress} />
-          <InputField label="צ'ק-אין" type="datetime-local" value={accCheckIn} onChange={setAccCheckIn} />
-          <InputField label="צ'ק-אאוט" type="datetime-local" value={accCheckOut} onChange={setAccCheckOut} />
-          <InputField label="פרטי קשר" value={accContact} onChange={setAccContact} />
-          <InputField label="מספר הזמנה" value={accBookingRef} onChange={setAccBookingRef} />
+        <div className="flex flex-col gap-4">
+          {accommodations.map((acc, idx) => (
+            <div key={idx} className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-600 relative">
+              {accommodations.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setAccommodations((prev) => prev.filter((_, i) => i !== idx))}
+                  className="absolute top-2 left-2 text-zinc-400 hover:text-red-500 text-lg leading-none"
+                >
+                  ×
+                </button>
+              )}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <InputField label="שם" value={acc.name} onChange={(v) => setAccommodations((prev) => prev.map((a, i) => i === idx ? { ...a, name: v } : a))} />
+                <InputField label="כתובת" value={acc.address} onChange={(v) => setAccommodations((prev) => prev.map((a, i) => i === idx ? { ...a, address: v } : a))} />
+                <InputField label="צ'ק-אין" type="datetime-local" value={acc.checkIn} onChange={(v) => setAccommodations((prev) => prev.map((a, i) => i === idx ? { ...a, checkIn: v } : a))} />
+                <InputField label="צ'ק-אאוט" type="datetime-local" value={acc.checkOut} onChange={(v) => setAccommodations((prev) => prev.map((a, i) => i === idx ? { ...a, checkOut: v } : a))} />
+                <InputField label="פרטי קשר" value={acc.contact} onChange={(v) => setAccommodations((prev) => prev.map((a, i) => i === idx ? { ...a, contact: v } : a))} />
+                <InputField label="מספר הזמנה" value={acc.bookingReference} onChange={(v) => setAccommodations((prev) => prev.map((a, i) => i === idx ? { ...a, bookingReference: v } : a))} />
+              </div>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => setAccommodations((prev) => [...prev, { ...emptyAccommodation }])}
+            className="self-start rounded-lg border border-dashed border-zinc-300 px-4 py-2 text-sm text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-600 dark:text-zinc-400"
+          >
+            + הוסף לינה
+          </button>
         </div>
       </CollapsibleSection>
 
