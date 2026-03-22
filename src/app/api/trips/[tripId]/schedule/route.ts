@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { syncLogisticsActivities } from "@/lib/sync-logistics"
+import { normalizeAccommodations, getAccommodationsForDay } from "@/lib/accommodations"
+import { computeDrivingTimesForDay, DrivingTimeFromLodging } from "@/lib/driving-times"
 
 async function verifyTripAccess(tripId: string, userId: string) {
   const trip = await prisma.trip.findUnique({
@@ -50,7 +52,30 @@ export async function GET(
     orderBy: { date: "asc" },
   })
 
-  return NextResponse.json(dayPlans)
+  // Enrich activities with driving times from lodging
+  const accommodations = normalizeAccommodations(trip.accommodation)
+
+  const enrichedDayPlans = await Promise.all(
+    dayPlans.map(async (dayPlan) => {
+      const dayDate = dayPlan.date.toISOString().split("T")[0]
+      const dayAccommodations = getAccommodationsForDay(accommodations, dayDate)
+        .map((a) => a.accommodation)
+
+      const enrichedActivities = await Promise.all(
+        dayPlan.activities.map(async (activity) => {
+          const drivingTimesFromLodging: DrivingTimeFromLodging[] =
+            activity.attraction || activity.restaurant
+              ? await computeDrivingTimesForDay(dayAccommodations, activity)
+              : []
+          return { ...activity, drivingTimesFromLodging }
+        })
+      )
+
+      return { ...dayPlan, activities: enrichedActivities }
+    })
+  )
+
+  return NextResponse.json(enrichedDayPlans)
 }
 
 export async function POST(
