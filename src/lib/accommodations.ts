@@ -1,10 +1,10 @@
 // Accommodation helpers for multi-accommodation support
 
 export interface Accommodation {
-  name: string;
-  address: string;
-  checkIn: string; // ISO date or datetime string
-  checkOut: string; // ISO date or datetime string
+  name?: string;
+  address?: string;
+  checkIn?: string; // ISO date or datetime string
+  checkOut?: string; // ISO date or datetime string
   contact?: string;
   bookingReference?: string;
   coordinates?: {
