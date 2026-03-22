@@ -23,6 +23,9 @@ interface FamilyProfile {
   preferredFlightStart: string | null
   preferredFlightEnd: string | null
   pace: string
+  preFlightArrivalMinutes: number
+  carPickupDurationMinutes: number
+  carReturnDurationMinutes: number
   members: FamilyMember[]
 }
 
@@ -162,6 +165,9 @@ export default function FamilyPage() {
                 preferredFlightStart: profile.preferredFlightStart,
                 preferredFlightEnd: profile.preferredFlightEnd,
                 pace: profile.pace,
+                preFlightArrivalMinutes: profile.preFlightArrivalMinutes,
+                carPickupDurationMinutes: profile.carPickupDurationMinutes,
+                carReturnDurationMinutes: profile.carReturnDurationMinutes,
               }}
             />
           </div>
