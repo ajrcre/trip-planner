@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { geocodeAddress } from "@/lib/google-maps"
+import { syncLogisticsActivities } from "@/lib/sync-logistics"
 
 async function verifyAccess(tripId: string, userId: string) {
   const trip = await prisma.trip.findUnique({
@@ -70,6 +72,15 @@ export async function PUT(
   const body = await request.json()
   const { name, destination, startDate, endDate, accommodation, flights, carRental } = body
 
+  // Geocode accommodation address if provided
+  let enrichedAccommodation = accommodation
+  if (accommodation?.address) {
+    const coords = await geocodeAddress(accommodation.address)
+    if (coords) {
+      enrichedAccommodation = { ...accommodation, coordinates: coords }
+    }
+  }
+
   const updated = await prisma.trip.update({
     where: { id: tripId },
     data: {
@@ -77,11 +88,16 @@ export async function PUT(
       ...(destination !== undefined && { destination }),
       ...(startDate !== undefined && { startDate: new Date(startDate) }),
       ...(endDate !== undefined && { endDate: new Date(endDate) }),
-      ...(accommodation !== undefined && { accommodation }),
+      ...(enrichedAccommodation !== undefined && { accommodation: enrichedAccommodation }),
       ...(flights !== undefined && { flights }),
       ...(carRental !== undefined && { carRental }),
     },
   })
+
+  // Sync logistics activities if flights or car rental data changed
+  if (flights !== undefined || carRental !== undefined) {
+    await syncLogisticsActivities(tripId, session.user.id)
+  }
 
   return NextResponse.json(updated)
 }
