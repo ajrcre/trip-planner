@@ -47,6 +47,7 @@ const typeConfig: Record<string, { icon: string; label: string }> = {
   flight_arrival: { icon: "🛬", label: "טיסת הגעה" },
   car_pickup: { icon: "🚗", label: "איסוף רכב" },
   car_return: { icon: "🔑", label: "החזרת רכב" },
+  lodging: { icon: "🏨", label: "לינה" },
 }
 
 const DAY_NAMES_EN = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]

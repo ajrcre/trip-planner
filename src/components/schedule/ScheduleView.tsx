@@ -249,6 +249,17 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
           dayPlan={activePlan}
           attractions={trip.attractions}
           restaurants={trip.restaurants}
+          accommodations={
+            activePlan
+              ? getAccommodationsForDay(accommodations, normalizeDate(activePlan.date))
+                  .map(({ accommodation }) => ({
+                    name: accommodation.name ?? "לינה",
+                    address: accommodation.address,
+                    lat: accommodation.coordinates?.lat,
+                    lng: accommodation.coordinates?.lng,
+                  }))
+              : []
+          }
           onUpdate={fetchSchedule}
         />
       )}

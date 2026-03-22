@@ -27,6 +27,7 @@ interface DayTimelineProps {
   dayPlan: DayPlanData
   attractions: AttractionOption[]
   restaurants: RestaurantOption[]
+  accommodations: { name: string; address?: string; lat?: number; lng?: number }[]
   onUpdate: () => void
 }
 
@@ -36,6 +37,7 @@ const activityTypes = [
   { value: "travel", label: "\u05E0\u05E1\u05D9\u05E2\u05D4" },
   { value: "rest", label: "\u05DE\u05E0\u05D5\u05D7\u05D4" },
   { value: "custom", label: "\u05D0\u05D7\u05E8" },
+  { value: "lodging", label: "לינה" },
 ]
 
 export function DayTimeline({
@@ -43,12 +45,14 @@ export function DayTimeline({
   dayPlan,
   attractions,
   restaurants,
+  accommodations,
   onUpdate,
 }: DayTimelineProps) {
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [addType, setAddType] = useState("attraction")
   const [addAttractionId, setAddAttractionId] = useState("")
   const [addRestaurantId, setAddRestaurantId] = useState("")
+  const [addAccommodationIdx, setAddAccommodationIdx] = useState("")
   const [addTimeStart, setAddTimeStart] = useState("")
   const [addTimeEnd, setAddTimeEnd] = useState("")
   const [addNotes, setAddNotes] = useState("")
@@ -61,35 +65,76 @@ export function DayTimeline({
     (r) => r.status === "want" || r.status === "maybe"
   )
 
+  function sortAndReindex(
+    activities: Array<{
+      sortOrder: number
+      timeStart?: string | null
+      timeEnd?: string | null
+      type: string
+      notes?: string | null
+      attractionId?: string | null
+      restaurantId?: string | null
+      travelTimeToNextMinutes?: number | null
+    }>
+  ) {
+    return [...activities]
+      .sort((a, b) => {
+        if (!a.timeStart && !b.timeStart) return a.sortOrder - b.sortOrder
+        if (!a.timeStart) return 1
+        if (!b.timeStart) return -1
+        return a.timeStart.localeCompare(b.timeStart)
+      })
+      .map((a, index) => ({ ...a, sortOrder: index }))
+  }
+
   async function handleAddActivity() {
     setIsSubmitting(true)
     try {
-      const nextSortOrder =
-        dayPlan.activities.length > 0
-          ? Math.max(...dayPlan.activities.map((a) => a.sortOrder)) + 1
-          : 0
+      // For lodging, use accommodation name as notes
+      const effectiveNotes =
+        addType === "lodging" && addAccommodationIdx !== ""
+          ? accommodations[parseInt(addAccommodationIdx)]?.name ?? addNotes
+          : addNotes
 
-      const body: Record<string, unknown> = {
-        sortOrder: nextSortOrder,
+      const newActivity: {
+        sortOrder: number
+        timeStart?: string | null
+        timeEnd?: string | null
+        type: string
+        notes?: string | null
+        attractionId?: string | null
+        restaurantId?: string | null
+        travelTimeToNextMinutes?: number | null
+      } = {
+        sortOrder: 999,
         type: addType,
-        timeStart: addTimeStart || undefined,
-        timeEnd: addTimeEnd || undefined,
-        notes: addNotes || undefined,
+        timeStart: addTimeStart || null,
+        timeEnd: addTimeEnd || null,
+        notes: effectiveNotes || null,
+        attractionId: addType === "attraction" && addAttractionId ? addAttractionId : null,
+        restaurantId: addType === "meal" && addRestaurantId ? addRestaurantId : null,
+        travelTimeToNextMinutes: null,
       }
 
-      if (addType === "attraction" && addAttractionId) {
-        body.attractionId = addAttractionId
-      }
-      if (addType === "meal" && addRestaurantId) {
-        body.restaurantId = addRestaurantId
-      }
+      const existingActivities = dayPlan.activities.map((a) => ({
+        sortOrder: a.sortOrder,
+        timeStart: a.timeStart,
+        timeEnd: a.timeEnd,
+        type: a.type,
+        notes: a.notes,
+        attractionId: a.attractionId,
+        restaurantId: a.restaurantId,
+        travelTimeToNextMinutes: a.travelTimeToNextMinutes,
+      }))
+
+      const allActivities = sortAndReindex([...existingActivities, newActivity])
 
       const res = await fetch(
         `/api/trips/${tripId}/schedule/${dayPlan.id}`,
         {
-          method: "POST",
+          method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
+          body: JSON.stringify({ activities: allActivities }),
         }
       )
 
@@ -108,28 +153,30 @@ export function DayTimeline({
     activity: ActivityData,
     updates: { timeStart?: string; timeEnd?: string; notes?: string }
   ) {
-    // Rebuild all activities with the update applied
-    const updatedActivities = dayPlan.activities.map((a) => {
-      const base = {
-        sortOrder: a.sortOrder,
-        timeStart: a.timeStart,
-        timeEnd: a.timeEnd,
-        type: a.type,
-        notes: a.notes,
-        attractionId: a.attractionId,
-        restaurantId: a.restaurantId,
-        travelTimeToNextMinutes: a.travelTimeToNextMinutes,
-      }
-      if (a.id === activity.id) {
-        return {
-          ...base,
-          timeStart: updates.timeStart ?? a.timeStart,
-          timeEnd: updates.timeEnd ?? a.timeEnd,
-          notes: updates.notes ?? a.notes,
+    // Rebuild all activities with the update applied, then re-sort by time
+    const updatedActivities = sortAndReindex(
+      dayPlan.activities.map((a) => {
+        const base = {
+          sortOrder: a.sortOrder,
+          timeStart: a.timeStart,
+          timeEnd: a.timeEnd,
+          type: a.type,
+          notes: a.notes,
+          attractionId: a.attractionId,
+          restaurantId: a.restaurantId,
+          travelTimeToNextMinutes: a.travelTimeToNextMinutes,
         }
-      }
-      return base
-    })
+        if (a.id === activity.id) {
+          return {
+            ...base,
+            timeStart: updates.timeStart ?? a.timeStart,
+            timeEnd: updates.timeEnd ?? a.timeEnd,
+            notes: updates.notes ?? a.notes,
+          }
+        }
+        return base
+      })
+    )
 
     try {
       const res = await fetch(
@@ -169,6 +216,7 @@ export function DayTimeline({
     setAddType("attraction")
     setAddAttractionId("")
     setAddRestaurantId("")
+    setAddAccommodationIdx("")
     setAddTimeStart("")
     setAddTimeEnd("")
     setAddNotes("")
@@ -275,6 +323,31 @@ export function DayTimeline({
                   {filteredRestaurants.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Accommodation dropdown */}
+            {addType === "lodging" && accommodations.length > 0 && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-zinc-500">{"לינה"}</label>
+                <select
+                  value={addAccommodationIdx}
+                  onChange={(e) => {
+                    setAddAccommodationIdx(e.target.value)
+                    if (e.target.value !== "") {
+                      const acc = accommodations[parseInt(e.target.value)]
+                      if (acc) setAddNotes(acc.name)
+                    }
+                  }}
+                  className="rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-700"
+                >
+                  <option value="">{"בחרו לינה..."}</option>
+                  {accommodations.map((acc, idx) => (
+                    <option key={idx} value={idx}>
+                      {acc.name}
                     </option>
                   ))}
                 </select>
