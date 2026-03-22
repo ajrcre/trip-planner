@@ -137,8 +137,9 @@ function getHostname(url: string): string {
 
 function OpeningHoursSection({ openingHours }: { openingHours: unknown }) {
   const [showAll, setShowAll] = useState(false)
-  const today = getTodayHours(openingHours)
   const allHours = parseDayHours(openingHours)
+  const todayName = DAY_NAMES_EN[new Date().getDay()]
+  const today = allHours.find((h) => h.dayName === todayName) ?? null
 
   if (!today && allHours.length === 0) return null
 
@@ -168,7 +169,7 @@ function OpeningHoursSection({ openingHours }: { openingHours: unknown }) {
                 <span
                   key={i}
                   className={`text-[11px] ${
-                    h.dayName === DAY_NAMES_EN[new Date().getDay()]
+                    h.dayName === todayName
                       ? "font-semibold text-zinc-700 dark:text-zinc-200"
                       : "text-zinc-500 dark:text-zinc-400"
                   }`}
@@ -384,7 +385,7 @@ export function ActivityCard({ activity, onEdit, onDelete }: ActivityCardProps) 
                     )}
 
                     {/* Address */}
-                    {place.address && (
+                    {!!place.address && (
                       <div className="flex items-start gap-1.5">
                         <span className="text-xs">📍</span>
                         <span className="text-xs text-zinc-600 dark:text-zinc-300">{place.address}</span>
@@ -392,7 +393,7 @@ export function ActivityCard({ activity, onEdit, onDelete }: ActivityCardProps) 
                     )}
 
                     {/* Phone */}
-                    {place.phone && (
+                    {!!place.phone && (
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs">📞</span>
                         <a
@@ -405,7 +406,7 @@ export function ActivityCard({ activity, onEdit, onDelete }: ActivityCardProps) 
                     )}
 
                     {/* Website */}
-                    {place.website && (
+                    {!!place.website && (
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs">🌐</span>
                         <a
@@ -420,7 +421,7 @@ export function ActivityCard({ activity, onEdit, onDelete }: ActivityCardProps) 
                     )}
 
                     {/* Google Maps link */}
-                    {place.googlePlaceId && (
+                    {!!place.googlePlaceId && (
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs">🗺️</span>
                         <a
@@ -435,7 +436,7 @@ export function ActivityCard({ activity, onEdit, onDelete }: ActivityCardProps) 
                     )}
 
                     {/* Opening hours */}
-                    {place.openingHours && (
+                    {!!place.openingHours && (
                       <OpeningHoursSection openingHours={place.openingHours} />
                     )}
                   </div>
