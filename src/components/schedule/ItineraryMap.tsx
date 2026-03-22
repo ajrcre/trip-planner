@@ -65,8 +65,40 @@ function getActivityName(activity: ActivityData): string {
   return activity.type
 }
 
-// Sub-component: Renders driving route polylines
-function DirectionsRenderer({
+/** Decode a Google encoded polyline string into lat/lng pairs */
+function decodePolyline(encoded: string): { lat: number; lng: number }[] {
+  const points: { lat: number; lng: number }[] = []
+  let index = 0
+  let lat = 0
+  let lng = 0
+
+  while (index < encoded.length) {
+    let shift = 0
+    let result = 0
+    let byte: number
+    do {
+      byte = encoded.charCodeAt(index++) - 63
+      result |= (byte & 0x1f) << shift
+      shift += 5
+    } while (byte >= 0x20)
+    lat += result & 1 ? ~(result >> 1) : result >> 1
+
+    shift = 0
+    result = 0
+    do {
+      byte = encoded.charCodeAt(index++) - 63
+      result |= (byte & 0x1f) << shift
+      shift += 5
+    } while (byte >= 0x20)
+    lng += result & 1 ? ~(result >> 1) : result >> 1
+
+    points.push({ lat: lat / 1e5, lng: lng / 1e5 })
+  }
+  return points
+}
+
+// Sub-component: Renders driving route polylines via Routes API
+function RoutePolylineRenderer({
   markers,
 }: {
   markers: { lat: number; lng: number }[]
@@ -76,40 +108,38 @@ function DirectionsRenderer({
   useEffect(() => {
     if (!map || markers.length < 2) return
 
-    const directionsService = new google.maps.DirectionsService()
-    const directionsRenderer = new google.maps.DirectionsRenderer({
-      map,
-      suppressMarkers: true,
-      polylineOptions: {
-        strokeColor: "#3B82F6",
-        strokeWeight: 3,
-        strokeOpacity: 0.7,
-      },
-    })
+    let polyline: google.maps.Polyline | null = null
+    let cancelled = false
 
-    const origin = markers[0]
-    const destination = markers[markers.length - 1]
-    const waypoints = markers.slice(1, -1).map((m) => ({
-      location: new google.maps.LatLng(m.lat, m.lng),
-      stopover: true,
-    }))
+    async function fetchAndDraw() {
+      try {
+        const res = await fetch("/api/routes/polyline", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ waypoints: markers }),
+        })
+        if (!res.ok || cancelled) return
+        const data = await res.json()
+        if (cancelled || !data.encodedPolyline) return
 
-    directionsService.route(
-      {
-        origin: new google.maps.LatLng(origin.lat, origin.lng),
-        destination: new google.maps.LatLng(destination.lat, destination.lng),
-        waypoints: waypoints.slice(0, 23), // max 23 waypoints
-        travelMode: google.maps.TravelMode.DRIVING,
-      },
-      (result, status) => {
-        if (status === google.maps.DirectionsStatus.OK && result) {
-          directionsRenderer.setDirections(result)
-        }
+        const path = decodePolyline(data.encodedPolyline)
+        polyline = new google.maps.Polyline({
+          path,
+          strokeColor: "#3B82F6",
+          strokeWeight: 3,
+          strokeOpacity: 0.7,
+          map,
+        })
+      } catch {
+        // Route drawing is supplementary — fail silently
       }
-    )
+    }
+
+    fetchAndDraw()
 
     return () => {
-      directionsRenderer.setMap(null)
+      cancelled = true
+      polyline?.setMap(null)
     }
   }, [map, markers])
 
@@ -287,7 +317,7 @@ export function ItineraryMap({
           >
             <MapBoundsHandler markers={markerPositions} />
             {markerPositions.length >= 2 && (
-              <DirectionsRenderer markers={markerPositions} />
+              <RoutePolylineRenderer markers={markerPositions} />
             )}
 
             {markersData.map((marker) => {

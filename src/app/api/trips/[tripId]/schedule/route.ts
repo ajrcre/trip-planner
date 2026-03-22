@@ -38,7 +38,7 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
 
-  const dayPlans = await prisma.dayPlan.findMany({
+  let dayPlans = await prisma.dayPlan.findMany({
     where: { tripId },
     include: {
       activities: {
@@ -52,8 +52,55 @@ export async function GET(
     orderBy: { date: "asc" },
   })
 
-  // Enrich activities with driving times from lodging
+  // Backfill lodging activities for days that don't have any
   const accommodations = normalizeAccommodations(trip.accommodation)
+  let didBackfill = false
+  if (accommodations.length > 0) {
+    for (const dayPlan of dayPlans) {
+      const hasLodging = dayPlan.activities.some((a) => a.type === "lodging")
+      if (hasLodging) continue
+
+      const dayDate = dayPlan.date.toISOString().split("T")[0]
+      const dayAccs = getAccommodationsForDay(accommodations, dayDate)
+      if (dayAccs.length === 0) continue
+
+      const acc = dayAccs[0].accommodation
+      const accName = acc.name ?? "לינה"
+      didBackfill = true
+
+      if (dayPlan.dayType === "arrival") {
+        await prisma.activity.create({
+          data: { dayPlanId: dayPlan.id, sortOrder: 900, type: "lodging", timeStart: "21:00", timeEnd: null, notes: accName },
+        })
+      } else if (dayPlan.dayType === "departure") {
+        await prisma.activity.create({
+          data: { dayPlanId: dayPlan.id, sortOrder: 0, type: "lodging", timeStart: "09:00", timeEnd: null, notes: accName },
+        })
+      } else {
+        await prisma.activity.create({
+          data: { dayPlanId: dayPlan.id, sortOrder: 0, type: "lodging", timeStart: "09:00", timeEnd: null, notes: accName },
+        })
+        await prisma.activity.create({
+          data: { dayPlanId: dayPlan.id, sortOrder: 900, type: "lodging", timeStart: "21:00", timeEnd: null, notes: accName },
+        })
+      }
+    }
+
+    if (didBackfill) {
+      dayPlans = await prisma.dayPlan.findMany({
+        where: { tripId },
+        include: {
+          activities: {
+            include: { attraction: true, restaurant: true },
+            orderBy: { sortOrder: "asc" },
+          },
+        },
+        orderBy: { date: "asc" },
+      })
+    }
+  }
+
+  // Enrich activities with driving times from lodging
 
   const enrichedDayPlans = await Promise.all(
     dayPlans.map(async (dayPlan) => {
