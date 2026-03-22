@@ -1,4 +1,4 @@
-import { computeDrivingTimesForDay } from "../driving-times"
+import { computeDrivingTimesForDay, clearRouteCache } from "../driving-times"
 
 // Mock google-maps
 jest.mock("../google-maps", () => ({
@@ -12,6 +12,7 @@ const mockedCalculateRoute = calculateRoute as jest.MockedFunction<typeof calcul
 describe("computeDrivingTimesForDay", () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    clearRouteCache()
   })
 
   it("returns empty array when activity has no coordinates", async () => {
@@ -111,6 +112,20 @@ describe("computeDrivingTimesForDay", () => {
       { accommodationName: "Hotel", minutes: 20 },
     ])
     expect(mockedCalculateRoute).toHaveBeenCalledWith({ lat: 1, lng: 2 }, { lat: 3, lng: 4 })
+  })
+
+  it("caches route results for same origin-destination", async () => {
+    mockedCalculateRoute.mockResolvedValue({ durationMinutes: 25, distanceKm: 18.5 })
+
+    const accommodations = [{ name: "Hotel A", coordinates: { lat: 1, lng: 2 } }]
+    const activity = { attraction: { lat: 3, lng: 4 }, restaurant: null }
+
+    // Call twice
+    await computeDrivingTimesForDay(accommodations, activity)
+    await computeDrivingTimesForDay(accommodations, activity)
+
+    // calculateRoute should only be called once due to cache
+    expect(mockedCalculateRoute).toHaveBeenCalledTimes(1)
   })
 
   it("handles calculateRoute failure gracefully -- skips that pair", async () => {
