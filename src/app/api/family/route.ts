@@ -31,7 +31,7 @@ export async function PUT(request: Request) {
   }
 
   const body = await request.json()
-  const { attractionTypes, foodPreferences, noLayovers, preferredFlightStart, preferredFlightEnd, pace } = body
+  const { attractionTypes, foodPreferences, noLayovers, preferredFlightStart, preferredFlightEnd, pace, preFlightArrivalMinutes, carPickupDurationMinutes, carReturnDurationMinutes } = body
 
   const profile = await prisma.familyProfile.upsert({
     where: { userId: session.user.id },
@@ -42,6 +42,9 @@ export async function PUT(request: Request) {
       preferredFlightStart: preferredFlightStart || null,
       preferredFlightEnd: preferredFlightEnd || null,
       pace,
+      ...(preFlightArrivalMinutes !== undefined && { preFlightArrivalMinutes }),
+      ...(carPickupDurationMinutes !== undefined && { carPickupDurationMinutes }),
+      ...(carReturnDurationMinutes !== undefined && { carReturnDurationMinutes }),
     },
     create: {
       userId: session.user.id,
@@ -51,6 +54,9 @@ export async function PUT(request: Request) {
       preferredFlightStart: preferredFlightStart || null,
       preferredFlightEnd: preferredFlightEnd || null,
       pace,
+      ...(preFlightArrivalMinutes !== undefined && { preFlightArrivalMinutes }),
+      ...(carPickupDurationMinutes !== undefined && { carPickupDurationMinutes }),
+      ...(carReturnDurationMinutes !== undefined && { carReturnDurationMinutes }),
     },
     include: { members: true },
   })
