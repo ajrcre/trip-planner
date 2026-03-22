@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useCallback, useEffect, useRef } from "react"
+import { FileUploadExtractor } from "@/components/trips/FileUploadExtractor"
 import { TripMap } from "@/components/maps/TripMap"
 import { DiscoveryPanel } from "@/components/attractions/DiscoveryPanel"
 import { AttractionTable } from "@/components/attractions/AttractionTable"
@@ -9,6 +10,8 @@ import { RestaurantTable } from "@/components/restaurants/RestaurantTable"
 import { ScheduleView } from "@/components/schedule/ScheduleView"
 import { PackingList } from "@/components/lists/PackingList"
 import { ShoppingList } from "@/components/lists/ShoppingList"
+import { DestinationOverview } from "@/components/trips/DestinationOverview"
+import { normalizeAccommodations } from "@/lib/accommodations"
 
 interface Trip {
   id: string
@@ -16,7 +19,7 @@ interface Trip {
   destination: string
   startDate: string
   endDate: string
-  accommodation: {
+  accommodation: Array<{
     name?: string
     address?: string
     checkIn?: string
@@ -24,7 +27,7 @@ interface Trip {
     contact?: string
     bookingReference?: string
     coordinates?: { lat: number; lng: number }
-  } | null
+  }> | null
   flights: {
     outbound?: {
       flightNumber?: string
@@ -47,6 +50,7 @@ interface Trip {
     returnLocation?: string
     additionalDetails?: string
   } | null
+  destinationInfo: any | null
   attractions: unknown[]
   restaurants: unknown[]
   dayPlans: unknown[]
@@ -56,6 +60,7 @@ interface Trip {
 
 const tabs = [
   { key: "overview", label: "סקירה כללית" },
+  { key: "destination", label: "יעד" },
   { key: "attractions", label: "אטרקציות" },
   { key: "restaurants", label: "מסעדות" },
   { key: "schedule", label: 'לו"ז' },
@@ -88,13 +93,253 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
   )
 }
 
-function OverviewTab({ trip }: { trip: Trip }) {
-  const acc = trip.accommodation
+function EditableField({
+  label,
+  value,
+  onChange,
+  type = "text",
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  type?: string
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+        {label}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
+      />
+    </div>
+  )
+}
+
+function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () => void }) {
+  const accommodations = normalizeAccommodations(trip.accommodation)
   const flights = trip.flights
   const car = trip.carRental
 
+  const [isEditing, setIsEditing] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+
+  // Edit state
+  const [editFlights, setEditFlights] = useState({
+    outbound: {
+      flightNumber: flights?.outbound?.flightNumber || "",
+      departureAirport: flights?.outbound?.departureAirport || "",
+      departureTime: flights?.outbound?.departureTime || "",
+      arrivalAirport: flights?.outbound?.arrivalAirport || "",
+      arrivalTime: flights?.outbound?.arrivalTime || "",
+    },
+    return: {
+      flightNumber: flights?.return?.flightNumber || "",
+      departureAirport: flights?.return?.departureAirport || "",
+      departureTime: flights?.return?.departureTime || "",
+      arrivalAirport: flights?.return?.arrivalAirport || "",
+      arrivalTime: flights?.return?.arrivalTime || "",
+    },
+  })
+
+  const [editAccommodations, setEditAccommodations] = useState(
+    accommodations.map((a) => ({
+      name: a.name || "",
+      address: a.address || "",
+      checkIn: a.checkIn || "",
+      checkOut: a.checkOut || "",
+      contact: a.contact || "",
+      bookingReference: a.bookingReference || "",
+    }))
+  )
+
+  const [editCar, setEditCar] = useState({
+    company: car?.company || "",
+    pickupLocation: car?.pickupLocation || "",
+    returnLocation: car?.returnLocation || "",
+    additionalDetails: car?.additionalDetails || "",
+  })
+
+  const handleStartEdit = () => {
+    setEditFlights({
+      outbound: {
+        flightNumber: flights?.outbound?.flightNumber || "",
+        departureAirport: flights?.outbound?.departureAirport || "",
+        departureTime: flights?.outbound?.departureTime || "",
+        arrivalAirport: flights?.outbound?.arrivalAirport || "",
+        arrivalTime: flights?.outbound?.arrivalTime || "",
+      },
+      return: {
+        flightNumber: flights?.return?.flightNumber || "",
+        departureAirport: flights?.return?.departureAirport || "",
+        departureTime: flights?.return?.departureTime || "",
+        arrivalAirport: flights?.return?.arrivalAirport || "",
+        arrivalTime: flights?.return?.arrivalTime || "",
+      },
+    })
+    setEditAccommodations(
+      accommodations.map((a) => ({
+        name: a.name || "",
+        address: a.address || "",
+        checkIn: a.checkIn || "",
+        checkOut: a.checkOut || "",
+        contact: a.contact || "",
+        bookingReference: a.bookingReference || "",
+      }))
+    )
+    setEditCar({
+      company: car?.company || "",
+      pickupLocation: car?.pickupLocation || "",
+      returnLocation: car?.returnLocation || "",
+      additionalDetails: car?.additionalDetails || "",
+    })
+    setIsEditing(true)
+  }
+
+  const handleSaveEdit = async () => {
+    setIsSaving(true)
+    try {
+      const hasFlights = Object.values(editFlights.outbound).some(Boolean) || Object.values(editFlights.return).some(Boolean)
+      const validAccommodations = editAccommodations.filter((a) => Object.values(a).some(Boolean))
+      const hasCar = Object.values(editCar).some(Boolean)
+
+      const body: Record<string, unknown> = {}
+      if (hasFlights) {
+        body.flights = {
+          outbound: Object.values(editFlights.outbound).some(Boolean) ? editFlights.outbound : null,
+          return: Object.values(editFlights.return).some(Boolean) ? editFlights.return : null,
+        }
+      } else {
+        body.flights = null
+      }
+      body.accommodation = validAccommodations.length > 0 ? validAccommodations : null
+      body.carRental = hasCar ? editCar : null
+
+      const res = await fetch(`/api/trips/${trip.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+
+      if (res.ok) {
+        setIsEditing(false)
+        onUpdated?.()
+      }
+    } catch (error) {
+      console.error("Failed to save:", error)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (isEditing) {
+    return (
+      <div className="flex flex-col gap-6">
+        {/* Flights Edit */}
+        <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
+          <h3 className="mb-4 text-lg font-semibold">טיסות</h3>
+          <div className="flex flex-col gap-4">
+            <h4 className="text-sm font-semibold text-zinc-600 dark:text-zinc-400">טיסת הלוך</h4>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <EditableField label="מספר טיסה" value={editFlights.outbound.flightNumber} onChange={(v) => setEditFlights((p) => ({ ...p, outbound: { ...p.outbound, flightNumber: v } }))} />
+              <EditableField label="שדה תעופה יציאה" value={editFlights.outbound.departureAirport} onChange={(v) => setEditFlights((p) => ({ ...p, outbound: { ...p.outbound, departureAirport: v } }))} />
+              <EditableField label="זמן יציאה" value={editFlights.outbound.departureTime} onChange={(v) => setEditFlights((p) => ({ ...p, outbound: { ...p.outbound, departureTime: v } }))} type="datetime-local" />
+              <EditableField label="שדה תעופה נחיתה" value={editFlights.outbound.arrivalAirport} onChange={(v) => setEditFlights((p) => ({ ...p, outbound: { ...p.outbound, arrivalAirport: v } }))} />
+              <EditableField label="זמן נחיתה" value={editFlights.outbound.arrivalTime} onChange={(v) => setEditFlights((p) => ({ ...p, outbound: { ...p.outbound, arrivalTime: v } }))} type="datetime-local" />
+            </div>
+            <h4 className="mt-2 text-sm font-semibold text-zinc-600 dark:text-zinc-400">טיסת חזור</h4>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <EditableField label="מספר טיסה" value={editFlights.return.flightNumber} onChange={(v) => setEditFlights((p) => ({ ...p, return: { ...p.return, flightNumber: v } }))} />
+              <EditableField label="שדה תעופה יציאה" value={editFlights.return.departureAirport} onChange={(v) => setEditFlights((p) => ({ ...p, return: { ...p.return, departureAirport: v } }))} />
+              <EditableField label="זמן יציאה" value={editFlights.return.departureTime} onChange={(v) => setEditFlights((p) => ({ ...p, return: { ...p.return, departureTime: v } }))} type="datetime-local" />
+              <EditableField label="שדה תעופה נחיתה" value={editFlights.return.arrivalAirport} onChange={(v) => setEditFlights((p) => ({ ...p, return: { ...p.return, arrivalAirport: v } }))} />
+              <EditableField label="זמן נחיתה" value={editFlights.return.arrivalTime} onChange={(v) => setEditFlights((p) => ({ ...p, return: { ...p.return, arrivalTime: v } }))} type="datetime-local" />
+            </div>
+          </div>
+        </div>
+
+        {/* Accommodation Edit */}
+        <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
+          <h3 className="mb-4 text-lg font-semibold">לינה</h3>
+          <div className="flex flex-col gap-4">
+            {editAccommodations.map((acc, idx) => (
+              <div key={idx} className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-600 relative">
+                {editAccommodations.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setEditAccommodations((prev) => prev.filter((_, i) => i !== idx))}
+                    className="absolute top-2 left-2 text-zinc-400 hover:text-red-500 text-lg leading-none"
+                  >
+                    ×
+                  </button>
+                )}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <EditableField label="שם" value={acc.name} onChange={(v) => setEditAccommodations((prev) => prev.map((a, i) => i === idx ? { ...a, name: v } : a))} />
+                  <EditableField label="כתובת" value={acc.address} onChange={(v) => setEditAccommodations((prev) => prev.map((a, i) => i === idx ? { ...a, address: v } : a))} />
+                  <EditableField label="צ'ק-אין" value={acc.checkIn} onChange={(v) => setEditAccommodations((prev) => prev.map((a, i) => i === idx ? { ...a, checkIn: v } : a))} type="datetime-local" />
+                  <EditableField label="צ'ק-אאוט" value={acc.checkOut} onChange={(v) => setEditAccommodations((prev) => prev.map((a, i) => i === idx ? { ...a, checkOut: v } : a))} type="datetime-local" />
+                  <EditableField label="פרטי קשר" value={acc.contact} onChange={(v) => setEditAccommodations((prev) => prev.map((a, i) => i === idx ? { ...a, contact: v } : a))} />
+                  <EditableField label="מספר הזמנה" value={acc.bookingReference} onChange={(v) => setEditAccommodations((prev) => prev.map((a, i) => i === idx ? { ...a, bookingReference: v } : a))} />
+                </div>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => setEditAccommodations((prev) => [...prev, { name: "", address: "", checkIn: "", checkOut: "", contact: "", bookingReference: "" }])}
+              className="self-start rounded-lg border border-dashed border-zinc-300 px-4 py-2 text-sm text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-600 dark:text-zinc-400"
+            >
+              + הוסף לינה
+            </button>
+          </div>
+        </div>
+
+        {/* Car Rental Edit */}
+        <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
+          <h3 className="mb-4 text-lg font-semibold">השכרת רכב</h3>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <EditableField label="חברה" value={editCar.company} onChange={(v) => setEditCar((p) => ({ ...p, company: v }))} />
+            <EditableField label="מיקום איסוף" value={editCar.pickupLocation} onChange={(v) => setEditCar((p) => ({ ...p, pickupLocation: v }))} />
+            <EditableField label="מיקום החזרה" value={editCar.returnLocation} onChange={(v) => setEditCar((p) => ({ ...p, returnLocation: v }))} />
+            <EditableField label="פרטים נוספים" value={editCar.additionalDetails} onChange={(v) => setEditCar((p) => ({ ...p, additionalDetails: v }))} />
+          </div>
+        </div>
+
+        {/* Save/Cancel */}
+        <div className="flex gap-3">
+          <button
+            onClick={handleSaveEdit}
+            disabled={isSaving}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+          >
+            {isSaving ? "שומר..." : "שמור"}
+          </button>
+          <button
+            onClick={() => setIsEditing(false)}
+            disabled={isSaving}
+            className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-700"
+          >
+            ביטול
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-6">
+      {/* Edit button */}
+      <div className="flex justify-end">
+        <button
+          onClick={handleStartEdit}
+          className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600"
+        >
+          ערוך פרטים
+        </button>
+      </div>
+
       {/* Dates */}
       <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
         <h3 className="mb-3 text-lg font-semibold">תאריכים</h3>
@@ -106,16 +351,25 @@ function OverviewTab({ trip }: { trip: Trip }) {
       </div>
 
       {/* Accommodation */}
-      {acc && (acc.name || acc.address) && (
+      {accommodations.length > 0 && (
         <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
           <h3 className="mb-3 text-lg font-semibold">לינה</h3>
-          <div className="flex flex-col gap-2">
-            <InfoRow label="שם" value={acc.name} />
-            <InfoRow label="כתובת" value={acc.address} />
-            <InfoRow label="צ'ק-אין" value={acc.checkIn ? formatDateTime(acc.checkIn) : undefined} />
-            <InfoRow label="צ'ק-אאוט" value={acc.checkOut ? formatDateTime(acc.checkOut) : undefined} />
-            <InfoRow label="פרטי קשר" value={acc.contact} />
-            <InfoRow label="מספר הזמנה" value={acc.bookingReference} />
+          <div className="flex flex-col gap-4">
+            {accommodations.map((acc, idx) => (
+              <div key={idx} className={idx > 0 ? "border-t border-zinc-200 pt-4 dark:border-zinc-700" : ""}>
+                {accommodations.length > 1 && acc.name && (
+                  <p className="mb-2 text-sm font-semibold text-zinc-700 dark:text-zinc-300">{acc.name}</p>
+                )}
+                <div className="flex flex-col gap-2">
+                  {accommodations.length === 1 && <InfoRow label="שם" value={acc.name} />}
+                  <InfoRow label="כתובת" value={acc.address} />
+                  <InfoRow label="צ'ק-אין" value={acc.checkIn ? formatDateTime(acc.checkIn) : undefined} />
+                  <InfoRow label="צ'ק-אאוט" value={acc.checkOut ? formatDateTime(acc.checkOut) : undefined} />
+                  <InfoRow label="פרטי קשר" value={acc.contact} />
+                  <InfoRow label="מספר הזמנה" value={acc.bookingReference} />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -190,18 +444,24 @@ function OverviewTab({ trip }: { trip: Trip }) {
         </div>
       )}
 
+      {/* File Upload Extractor */}
+      <FileUploadExtractor tripId={trip.id} onUpdated={onUpdated} />
+
       {/* Map */}
-      {acc?.coordinates ? (
-        <TripMap
-          center={acc.coordinates}
-          attractions={(trip.attractions as Array<{ lat: number; lng: number; name: string }>) ?? []}
-          restaurants={(trip.restaurants as Array<{ lat: number; lng: number; name: string }>) ?? []}
-        />
-      ) : (
-        <div className="flex h-64 items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800/50">
-          <span className="text-sm text-zinc-400">הוסף כתובת לינה כדי לראות מפה</span>
-        </div>
-      )}
+      {(() => {
+        const mapCenter = accommodations.find((a) => a.coordinates)?.coordinates
+        return mapCenter ? (
+          <TripMap
+            center={mapCenter}
+            attractions={(trip.attractions as Array<{ lat: number; lng: number; name: string }>) ?? []}
+            restaurants={(trip.restaurants as Array<{ lat: number; lng: number; name: string }>) ?? []}
+          />
+        ) : (
+          <div className="flex h-64 items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800/50">
+            <span className="text-sm text-zinc-400">הוסף כתובת לינה כדי לראות מפה</span>
+          </div>
+        )
+      })()}
     </div>
   )
 }
@@ -251,6 +511,8 @@ interface SavedAttraction {
   name: string
   description: string | null
   address: string | null
+  lat: number | null
+  lng: number | null
   phone: string | null
   website: string | null
   openingHours: unknown
@@ -621,8 +883,21 @@ function ScheduleTab({ trip }: { trip: Trip }) {
   )
 }
 
-export function TripDashboard({ trip }: { trip: Trip }) {
+export function TripDashboard({ trip: initialTrip }: { trip: Trip }) {
   const [activeTab, setActiveTab] = useState<TabKey>("overview")
+  const [trip, setTrip] = useState<Trip>(initialTrip)
+
+  const refreshTrip = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/trips/${trip.id}`)
+      if (res.ok) {
+        const data = await res.json()
+        setTrip(data)
+      }
+    } catch (error) {
+      console.error("Failed to refresh trip:", error)
+    }
+  }, [trip.id])
 
   return (
     <div className="flex flex-col gap-6">
@@ -655,7 +930,15 @@ export function TripDashboard({ trip }: { trip: Trip }) {
       </div>
 
       {/* Tab Content */}
-      {activeTab === "overview" && <OverviewTab trip={trip} />}
+      {activeTab === "overview" && <OverviewTab trip={trip} onUpdated={refreshTrip} />}
+      {activeTab === "destination" && (
+        <DestinationOverview
+          tripId={trip.id}
+          destination={trip.destination}
+          destinationInfo={trip.destinationInfo}
+          onGenerated={refreshTrip}
+        />
+      )}
       {activeTab === "attractions" && <AttractionsTab trip={trip} />}
       {activeTab === "restaurants" && <RestaurantsTab trip={trip} />}
       {activeTab === "schedule" && <ScheduleTab trip={trip} />}
