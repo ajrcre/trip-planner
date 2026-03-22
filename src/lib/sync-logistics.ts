@@ -49,13 +49,13 @@ function addMinutes(timeStr: string, minutes: number): string {
   return formatTime(parseTime(timeStr) + minutes)
 }
 
-/** Extract "HH:mm" from an ISO datetime string */
+/** Extract "HH:mm" from an ISO datetime string (UTC) */
 function isoToTime(iso: string): string {
   const d = new Date(iso)
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`
 }
 
-/** Extract "YYYY-MM-DD" from an ISO datetime string */
+/** Extract "YYYY-MM-DD" from an ISO datetime string (UTC) */
 function isoToDateStr(iso: string): string {
   return new Date(iso).toISOString().split("T")[0]
 }
