@@ -22,6 +22,10 @@ const typeConfig: Record<string, { icon: string; label: string }> = {
   travel: { icon: "\u{1F697}", label: "\u05E0\u05E1\u05D9\u05E2\u05D4" },
   rest: { icon: "\u{1F634}", label: "\u05DE\u05E0\u05D5\u05D7\u05D4" },
   custom: { icon: "\u{1F4DD}", label: "\u05D0\u05D7\u05E8" },
+  flight_departure: { icon: "✈️", label: "טיסת יציאה" },
+  flight_arrival: { icon: "🛬", label: "טיסת הגעה" },
+  car_pickup: { icon: "🚗", label: "איסוף רכב" },
+  car_return: { icon: "🔑", label: "החזרת רכב" },
 }
 
 interface ActivityCardProps {
