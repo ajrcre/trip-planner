@@ -875,6 +875,7 @@ function ScheduleTab({ trip }: { trip: Trip }) {
         id: trip.id,
         startDate: trip.startDate,
         endDate: trip.endDate,
+        accommodation: trip.accommodation,
         flights: trip.flights,
         attractions,
         restaurants,

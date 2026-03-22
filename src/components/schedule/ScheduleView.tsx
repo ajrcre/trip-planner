@@ -1,13 +1,17 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useMemo } from "react"
 import { DayTimeline, type DayPlanData } from "./DayTimeline"
 import { AiAssistant } from "../ai/AiAssistant"
+import { WeatherForecast } from "./WeatherForecast"
+import type { DailyWeather, HourlyWeather } from "@/lib/weather"
+import { normalizeAccommodations, getAccommodationsForDay } from "@/lib/accommodations"
 
 interface Trip {
   id: string
   startDate: string
   endDate: string
+  accommodation: unknown
   flights: {
     outbound?: {
       arrivalTime?: string
@@ -51,11 +55,74 @@ function formatDayDate(dateStr: string) {
   })
 }
 
+interface WeatherResponse {
+  daily: DailyWeather[]
+  hourly: HourlyWeather[]
+  forecastAvailableUntil: string
+}
+
+function isWithinTwoWeeks(dateStr: string): boolean {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffMs = date.getTime() - now.getTime()
+  return diffMs < 14 * 24 * 60 * 60 * 1000
+}
+
+function normalizeDate(dateStr: string): string {
+  return new Date(dateStr).toISOString().split("T")[0]
+}
+
 export function ScheduleView({ trip }: ScheduleViewProps) {
   const [dayPlans, setDayPlans] = useState<DayPlanData[]>([])
   const [activeDay, setActiveDay] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [weatherData, setWeatherData] = useState<WeatherResponse | null>(null)
+  const [isWeatherLoading, setIsWeatherLoading] = useState(true)
+
+  // Fetch weather data
+  useEffect(() => {
+    async function fetchWeather() {
+      try {
+        const res = await fetch(`/api/trips/${trip.id}/weather`)
+        if (res.ok) {
+          const data = await res.json()
+          setWeatherData(data)
+        }
+      } catch {
+        // Weather is supplementary — fail silently
+      } finally {
+        setIsWeatherLoading(false)
+      }
+    }
+    fetchWeather()
+  }, [trip.id])
+
+  // Map date -> daily weather for quick lookup
+  const weatherByDate = useMemo(() => {
+    const map = new Map<string, DailyWeather>()
+    if (weatherData?.daily) {
+      for (const d of weatherData.daily) {
+        map.set(d.date, d)
+      }
+    }
+    return map
+  }, [weatherData])
+
+  // Map date -> hourly weather
+  const hourlyByDate = useMemo(() => {
+    const map = new Map<string, HourlyWeather[]>()
+    if (weatherData?.hourly) {
+      for (const h of weatherData.hourly) {
+        const date = h.time.split("T")[0]
+        if (!map.has(date)) map.set(date, [])
+        map.get(date)!.push(h)
+      }
+    }
+    return map
+  }, [weatherData])
+
+  const accommodations = useMemo(() => normalizeAccommodations(trip.accommodation), [trip.accommodation])
 
   const fetchSchedule = useCallback(async () => {
     try {
@@ -131,12 +198,13 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
         {dayPlans.map((day) => {
           const config = dayTypeConfig[day.dayType] ?? dayTypeConfig.full_day
           const isActive = day.id === activeDay
+          const dayWeather = weatherByDate.get(normalizeDate(day.date))
 
           return (
             <button
               key={day.id}
               onClick={() => setActiveDay(day.id)}
-              className={`flex min-w-[100px] flex-col items-center gap-0.5 whitespace-nowrap rounded-lg border-b-2 px-3 py-2 text-xs font-medium transition-colors ${
+              className={`flex min-w-[110px] flex-col items-center gap-0.5 whitespace-nowrap rounded-lg border-b-2 px-3 py-2 text-xs font-medium transition-colors ${
                 isActive
                   ? `bg-white shadow-sm dark:bg-zinc-700 ${config.accent}`
                   : "border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
@@ -145,10 +213,34 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
               <span>{config.icon}</span>
               <span>{formatDayDate(day.date)}</span>
               <span className="text-[10px] text-zinc-400">{config.label}</span>
+              {dayWeather && (
+                <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                  {dayWeather.condition.icon} {dayWeather.temperatureMax}°
+                </span>
+              )}
+              {(() => {
+                const dayAccs = getAccommodationsForDay(accommodations, day.date)
+                if (dayAccs.length === 0) return null
+                return dayAccs.map(({ accommodation: a, status }, i) => (
+                  <span key={i} className="text-[10px] text-blue-500 dark:text-blue-400 truncate max-w-[100px]">
+                    🏨 {status === "check-in" ? "כניסה: " : status === "check-out" ? "יציאה: " : ""}{a.name || "לינה"}
+                  </span>
+                ))
+              })()}
             </button>
           )
         })}
       </div>
+
+      {/* Weather forecast for active day */}
+      {activePlan && (
+        <WeatherForecast
+          dailyWeather={weatherByDate.get(normalizeDate(activePlan.date)) ?? null}
+          hourlyWeather={hourlyByDate.get(normalizeDate(activePlan.date)) ?? null}
+          isNearDate={isWithinTwoWeeks(activePlan.date)}
+          isLoading={isWeatherLoading}
+        />
+      )}
 
       {/* Active day timeline */}
       {activePlan && (
