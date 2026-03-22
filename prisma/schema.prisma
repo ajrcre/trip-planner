@@ -71,6 +71,10 @@ model FamilyProfile {
   preferredFlightEnd   String?
   pace               String    @default("moderate")
 
+  preFlightArrivalMinutes  Int @default(180)
+  carPickupDurationMinutes Int @default(120)
+  carReturnDurationMinutes Int @default(60)
+
   members FamilyMember[]
 
   createdAt DateTime @default(now())
@@ -107,6 +111,7 @@ model Trip {
   accommodation Json?
   flights Json?
   carRental Json?
+  destinationInfo Json?
 
   attractions  Attraction[]
   restaurants  Restaurant[]
