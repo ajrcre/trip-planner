@@ -12,8 +12,28 @@ export interface ActivityData {
   attractionId: string | null
   restaurantId: string | null
   travelTimeToNextMinutes: number | null
-  attraction: { id: string; name: string } | null
-  restaurant: { id: string; name: string } | null
+  attraction: {
+    id: string
+    name: string
+    address: string | null
+    phone: string | null
+    website: string | null
+    googlePlaceId: string | null
+    openingHours: unknown
+    lat: number | null
+    lng: number | null
+  } | null
+  restaurant: {
+    id: string
+    name: string
+    address: string | null
+    phone: string | null
+    website: string | null
+    googlePlaceId: string | null
+    openingHours: unknown
+    lat: number | null
+    lng: number | null
+  } | null
   drivingTimesFromLodging?: { accommodationName: string; minutes: number }[]
 }
 
