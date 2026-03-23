@@ -65,6 +65,7 @@ function toActivityCreateData(
     notes: a.notes ?? null,
     attractionId: a.attractionId ?? null,
     restaurantId: a.restaurantId ?? null,
+    travelTimeToNextMinutes: null as number | null,
   }))
 }
 
