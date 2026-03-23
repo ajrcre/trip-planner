@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useMemo } from "react"
 import { DayTimeline, type DayPlanData } from "./DayTimeline"
 import { ItineraryMap } from "./ItineraryMap"
-import { AiAssistant } from "../ai/AiAssistant"
+import ChatDrawer from "../ai/ChatDrawer"
 import { WeatherForecast } from "./WeatherForecast"
 import type { DailyWeather, HourlyWeather } from "@/lib/weather"
 import { normalizeAccommodations, getAccommodationsForDay } from "@/lib/accommodations"
@@ -81,6 +81,7 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
   const [weatherData, setWeatherData] = useState<WeatherResponse | null>(null)
   const [isWeatherLoading, setIsWeatherLoading] = useState(true)
   const [activeActivityId, setActiveActivityId] = useState<string | null>(null)
+  const [isChatOpen, setIsChatOpen] = useState(false)
 
   const handleMarkerClick = useCallback((activityId: string) => {
     setActiveActivityId(activityId)
@@ -291,8 +292,14 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
             />
           )}
 
-          {/* AI Assistant */}
-          <AiAssistant tripId={trip.id} />
+          {/* AI Assistant trigger button */}
+          <button
+            onClick={() => setIsChatOpen(true)}
+            className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+          >
+            <span className="text-lg" aria-hidden="true">💡</span>
+            עוזר AI לתכנון
+          </button>
         </div>
 
         {/* Map panel (left side on desktop) */}
@@ -308,6 +315,14 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
           )}
         </div>
       </div>
+
+      {/* Chat Drawer */}
+      <ChatDrawer
+        tripId={trip.id}
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        onScheduleUpdate={fetchSchedule}
+      />
     </div>
   )
 }
