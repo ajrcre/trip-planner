@@ -145,7 +145,10 @@ export async function POST(request: Request) {
       restaurants: true,
       dayPlans: {
         include: {
-          activities: { include: { attraction: true, restaurant: true } },
+          activities: {
+            include: { attraction: true, restaurant: true },
+            orderBy: { sortOrder: "asc" },
+          },
         },
         orderBy: { date: "asc" },
       },
