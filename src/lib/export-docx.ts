@@ -16,14 +16,6 @@ import {
 // A4 page: 11906 DXA wide, 1440 DXA margins each side = 9026 DXA content width
 const CONTENT_WIDTH = 9026
 
-interface FlightInfo {
-  flightNumber?: string
-  departureAirport?: string
-  departureTime?: string
-  arrivalAirport?: string
-  arrivalTime?: string
-}
-
 interface TripData {
   name: string
   destination: string
@@ -37,16 +29,21 @@ interface TripData {
     contact?: string
     bookingReference?: string
   }> | null
-  flights: {
-    outbound?: FlightInfo
-    return?: FlightInfo
-  } | null
-  carRental: {
+  flights: Array<{
+    flightNumber?: string
+    departureAirport?: string
+    departureTime?: string
+    arrivalAirport?: string
+    arrivalTime?: string
+  }> | null
+  carRental: Array<{
     company?: string
     pickupLocation?: string
+    pickupTime?: string
     returnLocation?: string
+    returnTime?: string
     additionalDetails?: string
-  } | null
+  }> | null
   attractions: Array<{
     name: string
     address?: string | null
@@ -161,60 +158,34 @@ function createTableCell(text: string, widthDxa: number, isHeader = false): Tabl
 }
 
 function buildFlightSection(flights: TripData["flights"]): Paragraph[] {
-  if (!flights) return []
+  if (!flights || flights.length === 0) return []
   const paragraphs: Paragraph[] = [createHeading("טיסות", HeadingLevel.HEADING_2)]
 
-  if (flights.outbound?.flightNumber) {
-    paragraphs.push(
-      new Paragraph({
-        bidirectional: true,
-        alignment: AlignmentType.RIGHT,
-        children: [new TextRun({ text: "טיסת הלוך", bold: true, rightToLeft: true })],
-      })
-    )
-    paragraphs.push(createInfoParagraph("מספר טיסה", flights.outbound.flightNumber))
-    if (flights.outbound.departureAirport)
+  for (const flight of flights) {
+    if (!flight.flightNumber && !flight.departureAirport) continue
+
+    if (flight.flightNumber) {
+      paragraphs.push(createInfoParagraph("מספר טיסה", flight.flightNumber))
+    }
+    if (flight.departureAirport) {
       paragraphs.push(
         createInfoParagraph(
           "יציאה",
-          `${flights.outbound.departureAirport}${flights.outbound.departureTime ? ` - ${formatDateTime(flights.outbound.departureTime)}` : ""}`
+          `${flight.departureAirport}${flight.departureTime ? ` - ${formatDateTime(flight.departureTime)}` : ""}`
         )
       )
-    if (flights.outbound.arrivalAirport)
+    }
+    if (flight.arrivalAirport) {
       paragraphs.push(
         createInfoParagraph(
           "נחיתה",
-          `${flights.outbound.arrivalAirport}${flights.outbound.arrivalTime ? ` - ${formatDateTime(flights.outbound.arrivalTime)}` : ""}`
+          `${flight.arrivalAirport}${flight.arrivalTime ? ` - ${formatDateTime(flight.arrivalTime)}` : ""}`
         )
       )
+    }
+    paragraphs.push(new Paragraph({ text: "" }))
   }
 
-  if (flights.return?.flightNumber) {
-    paragraphs.push(
-      new Paragraph({
-        bidirectional: true,
-        alignment: AlignmentType.RIGHT,
-        children: [new TextRun({ text: "טיסת חזור", bold: true, rightToLeft: true })],
-      })
-    )
-    paragraphs.push(createInfoParagraph("מספר טיסה", flights.return.flightNumber))
-    if (flights.return.departureAirport)
-      paragraphs.push(
-        createInfoParagraph(
-          "יציאה",
-          `${flights.return.departureAirport}${flights.return.departureTime ? ` - ${formatDateTime(flights.return.departureTime)}` : ""}`
-        )
-      )
-    if (flights.return.arrivalAirport)
-      paragraphs.push(
-        createInfoParagraph(
-          "נחיתה",
-          `${flights.return.arrivalAirport}${flights.return.arrivalTime ? ` - ${formatDateTime(flights.return.arrivalTime)}` : ""}`
-        )
-      )
-  }
-
-  paragraphs.push(new Paragraph({ text: "" }))
   return paragraphs
 }
 
@@ -242,16 +213,22 @@ function buildAccommodationSection(accommodations: TripData["accommodation"]): P
   return paragraphs
 }
 
-function buildCarRentalSection(car: TripData["carRental"]): Paragraph[] {
-  if (!car || (!car.company && !car.pickupLocation)) return []
+function buildCarRentalSection(carRentals: TripData["carRental"]): Paragraph[] {
+  if (!carRentals || carRentals.length === 0) return []
   const paragraphs: Paragraph[] = [createHeading("השכרת רכב", HeadingLevel.HEADING_2)]
 
-  if (car.company) paragraphs.push(createInfoParagraph("חברה", car.company))
-  if (car.pickupLocation) paragraphs.push(createInfoParagraph("מיקום איסוף", car.pickupLocation))
-  if (car.returnLocation) paragraphs.push(createInfoParagraph("מיקום החזרה", car.returnLocation))
-  if (car.additionalDetails) paragraphs.push(createInfoParagraph("פרטים נוספים", car.additionalDetails))
+  for (const car of carRentals) {
+    if (!car.company && !car.pickupLocation) continue
 
-  paragraphs.push(new Paragraph({ text: "" }))
+    if (car.company) paragraphs.push(createInfoParagraph("חברה", car.company))
+    if (car.pickupLocation) paragraphs.push(createInfoParagraph("מיקום איסוף", car.pickupLocation))
+    if (car.pickupTime) paragraphs.push(createInfoParagraph("זמן איסוף", formatDateTime(car.pickupTime)))
+    if (car.returnLocation) paragraphs.push(createInfoParagraph("מיקום החזרה", car.returnLocation))
+    if (car.returnTime) paragraphs.push(createInfoParagraph("זמן החזרה", formatDateTime(car.returnTime)))
+    if (car.additionalDetails) paragraphs.push(createInfoParagraph("פרטים נוספים", car.additionalDetails))
+    paragraphs.push(new Paragraph({ text: "" }))
+  }
+
   return paragraphs
 }
 

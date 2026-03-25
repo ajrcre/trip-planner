@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import { TripMap } from "@/components/maps/TripMap"
+import { normalizeFlights, normalizeCarRentals } from "@/lib/normalizers"
 
 interface SharedTrip {
   id: string
@@ -186,57 +187,33 @@ export default function SharedTripPage() {
 
         <div className="flex flex-col gap-6">
           {/* Flights */}
-          {trip.flights && (trip.flights.outbound?.flightNumber || trip.flights.return?.flightNumber) && (
-            <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
-              <h2 className="mb-4 text-xl font-semibold">טיסות</h2>
-              <div className="flex flex-col gap-4">
-                {trip.flights.outbound?.flightNumber && (
-                  <div>
-                    <h3 className="mb-2 text-sm font-semibold text-zinc-600">טיסת הלוך</h3>
-                    <InfoRow label="מספר טיסה" value={trip.flights.outbound.flightNumber} />
-                    <InfoRow
-                      label="יציאה"
-                      value={
-                        trip.flights.outbound.departureAirport
-                          ? `${trip.flights.outbound.departureAirport}${trip.flights.outbound.departureTime ? ` - ${formatDateTime(trip.flights.outbound.departureTime)}` : ""}`
-                          : undefined
-                      }
-                    />
-                    <InfoRow
-                      label="נחיתה"
-                      value={
-                        trip.flights.outbound.arrivalAirport
-                          ? `${trip.flights.outbound.arrivalAirport}${trip.flights.outbound.arrivalTime ? ` - ${formatDateTime(trip.flights.outbound.arrivalTime)}` : ""}`
-                          : undefined
-                      }
-                    />
-                  </div>
-                )}
-                {trip.flights.return?.flightNumber && (
-                  <div>
-                    <h3 className="mb-2 text-sm font-semibold text-zinc-600">טיסת חזור</h3>
-                    <InfoRow label="מספר טיסה" value={trip.flights.return.flightNumber} />
-                    <InfoRow
-                      label="יציאה"
-                      value={
-                        trip.flights.return.departureAirport
-                          ? `${trip.flights.return.departureAirport}${trip.flights.return.departureTime ? ` - ${formatDateTime(trip.flights.return.departureTime)}` : ""}`
-                          : undefined
-                      }
-                    />
-                    <InfoRow
-                      label="נחיתה"
-                      value={
-                        trip.flights.return.arrivalAirport
-                          ? `${trip.flights.return.arrivalAirport}${trip.flights.return.arrivalTime ? ` - ${formatDateTime(trip.flights.return.arrivalTime)}` : ""}`
-                          : undefined
-                      }
-                    />
-                  </div>
-                )}
-              </div>
-            </section>
-          )}
+          {(() => {
+  const flightsList = normalizeFlights(trip.flights)
+  return flightsList.length > 0 && (
+    <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+      <h2 className="mb-4 text-xl font-semibold">טיסות</h2>
+      <div className="flex flex-col gap-4">
+        {flightsList.map((flight, idx) => (
+          <div key={idx}>
+            {flight.flightNumber && <InfoRow label="מספר טיסה" value={flight.flightNumber} />}
+            {flight.departureAirport && (
+              <InfoRow
+                label="יציאה"
+                value={`${flight.departureAirport}${flight.departureTime ? ` - ${formatDateTime(flight.departureTime)}` : ""}`}
+              />
+            )}
+            {flight.arrivalAirport && (
+              <InfoRow
+                label="נחיתה"
+                value={`${flight.arrivalAirport}${flight.arrivalTime ? ` - ${formatDateTime(flight.arrivalTime)}` : ""}`}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+})()}
 
           {/* Accommodation */}
           {trip.accommodation && (trip.accommodation.name || trip.accommodation.address) && (
@@ -261,15 +238,24 @@ export default function SharedTripPage() {
           )}
 
           {/* Car Rental */}
-          {trip.carRental && (trip.carRental.company || trip.carRental.pickupLocation) && (
-            <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
-              <h2 className="mb-4 text-xl font-semibold">השכרת רכב</h2>
-              <InfoRow label="חברה" value={trip.carRental.company} />
-              <InfoRow label="מיקום איסוף" value={trip.carRental.pickupLocation} />
-              <InfoRow label="מיקום החזרה" value={trip.carRental.returnLocation} />
-              <InfoRow label="פרטים נוספים" value={trip.carRental.additionalDetails} />
-            </section>
-          )}
+          {(() => {
+  const rentalsList = normalizeCarRentals(trip.carRental)
+  return rentalsList.length > 0 && (
+    <section className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+      <h2 className="mb-4 text-xl font-semibold">השכרת רכב</h2>
+      {rentalsList.map((car, idx) => (
+        <div key={idx} className={idx > 0 ? "mt-3 border-t border-zinc-100 pt-3" : ""}>
+          {car.company && <InfoRow label="חברה" value={car.company} />}
+          {car.pickupLocation && <InfoRow label="מיקום איסוף" value={car.pickupLocation} />}
+          {car.pickupTime && <InfoRow label="זמן איסוף" value={formatDateTime(car.pickupTime)} />}
+          {car.returnLocation && <InfoRow label="מיקום החזרה" value={car.returnLocation} />}
+          {car.returnTime && <InfoRow label="זמן החזרה" value={formatDateTime(car.returnTime)} />}
+          {car.additionalDetails && <InfoRow label="פרטים נוספים" value={car.additionalDetails} />}
+        </div>
+      ))}
+    </section>
+  )
+})()}
 
           {/* Map */}
           {trip.accommodation?.coordinates ? (
