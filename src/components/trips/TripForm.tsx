@@ -1,74 +1,40 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
+import { FileUploadZone } from "./FileUploadZone"
+import { FlightsList, makeEmptyFlight, type FlightFormData } from "./FlightsList"
+import { AccommodationsList, makeEmptyAccommodation, type AccommodationFormData } from "./AccommodationsList"
+import { CarRentalsList, makeEmptyCarRental, type CarRentalFormData } from "./CarRentalsList"
+import { InputField } from "./InputField"
+import type { ExtractedTripDetails } from "@/lib/gemini"
 
 interface CollapsibleSectionProps {
   title: string
   children: React.ReactNode
+  open?: boolean
+  onToggle?: () => void
 }
 
-function CollapsibleSection({ title, children }: CollapsibleSectionProps) {
-  const [open, setOpen] = useState(false)
+function CollapsibleSection({ title, children, open, onToggle }: CollapsibleSectionProps) {
+  const [internalOpen, setInternalOpen] = useState(false)
+
+  const isOpen = open !== undefined ? open : internalOpen
+  const handleToggle = onToggle || (() => setInternalOpen((v) => !v))
 
   return (
     <div className="rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
       <button
         type="button"
-        onClick={() => setOpen(!open)}
+        onClick={handleToggle}
         className="flex w-full items-center justify-between px-6 py-4 text-right"
       >
         <span className="text-lg font-semibold">{title}</span>
-        <span className="text-zinc-400">{open ? "−" : "+"}</span>
+        <span className="text-zinc-400">{isOpen ? "−" : "+"}</span>
       </button>
-      {open && <div className="border-t border-zinc-200 px-6 py-4 dark:border-zinc-700">{children}</div>}
+      {isOpen && <div className="border-t border-zinc-200 px-6 py-4 dark:border-zinc-700">{children}</div>}
     </div>
   )
-}
-
-function InputField({
-  label,
-  type = "text",
-  value,
-  onChange,
-  required = false,
-}: {
-  label: string
-  type?: string
-  value: string
-  onChange: (v: string) => void
-  required?: boolean
-}) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-        {label}
-        {required && <span className="text-red-500 mr-1">*</span>}
-      </span>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        required={required}
-        className="rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-700"
-      />
-    </label>
-  )
-}
-
-interface AccommodationFormData {
-  _id: number
-  name: string
-  address: string
-  checkIn: string
-  checkOut: string
-  contact: string
-  bookingReference: string
-}
-
-let _nextFormId = 1
-function makeEmptyAccommodation(): AccommodationFormData {
-  return { _id: _nextFormId++, name: "", address: "", checkIn: "", checkOut: "", contact: "", bookingReference: "" }
 }
 
 export function TripForm() {
@@ -81,67 +47,91 @@ export function TripForm() {
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
 
-  // Accommodation
-  const nextIdRef = useRef(100)
+  // Lists
+  const [flights, setFlights] = useState<FlightFormData[]>([makeEmptyFlight()])
   const [accommodations, setAccommodations] = useState<AccommodationFormData[]>([makeEmptyAccommodation()])
+  const [carRentals, setCarRentals] = useState<CarRentalFormData[]>([makeEmptyCarRental()])
 
-  // Flights
-  const [outFlightNum, setOutFlightNum] = useState("")
-  const [outDepartAirport, setOutDepartAirport] = useState("")
-  const [outDepartTime, setOutDepartTime] = useState("")
-  const [outArriveAirport, setOutArriveAirport] = useState("")
-  const [outArriveTime, setOutArriveTime] = useState("")
-  const [retFlightNum, setRetFlightNum] = useState("")
-  const [retDepartAirport, setRetDepartAirport] = useState("")
-  const [retDepartTime, setRetDepartTime] = useState("")
-  const [retArriveAirport, setRetArriveAirport] = useState("")
-  const [retArriveTime, setRetArriveTime] = useState("")
+  // Section visibility
+  const [showFlights, setShowFlights] = useState(false)
+  const [showAccommodation, setShowAccommodation] = useState(false)
+  const [showCarRentals, setShowCarRentals] = useState(false)
 
-  // Car Rental
-  const [carCompany, setCarCompany] = useState("")
-  const [carPickup, setCarPickup] = useState("")
-  const [carReturn, setCarReturn] = useState("")
-  const [carDetails, setCarDetails] = useState("")
+  const handleExtracted = useCallback((data: ExtractedTripDetails, _fileName: string) => {
+    if (data.destination && !destination) setDestination(data.destination)
+    if (data.startDate && !startDate) setStartDate(data.startDate)
+    if (data.endDate && !endDate) setEndDate(data.endDate)
+
+    if (data.flights && data.flights.length > 0) {
+      let nextId = Date.now()
+      const newFlights = data.flights.map((f) => ({
+        _id: nextId++,
+        flightNumber: f.flightNumber || "",
+        departureAirport: f.departureAirport || "",
+        departureTime: f.departureTime || "",
+        arrivalAirport: f.arrivalAirport || "",
+        arrivalTime: f.arrivalTime || "",
+      }))
+      setFlights((prev) => {
+        const nonEmpty = prev.filter((f) => f.flightNumber || f.departureAirport || f.arrivalAirport)
+        return nonEmpty.length > 0 ? [...nonEmpty, ...newFlights] : newFlights
+      })
+      setShowFlights(true)
+    }
+
+    if (data.accommodation && data.accommodation.length > 0) {
+      let nextId = Date.now() + 1000
+      const newAccommodations = data.accommodation.map((a) => ({
+        _id: nextId++,
+        name: a.name || "",
+        address: a.address || "",
+        checkIn: a.checkIn || "",
+        checkOut: a.checkOut || "",
+        contact: a.contact || "",
+        bookingReference: a.bookingReference || "",
+      }))
+      setAccommodations((prev) => {
+        const nonEmpty = prev.filter((a) => a.name || a.address || a.checkIn || a.checkOut)
+        return nonEmpty.length > 0 ? [...nonEmpty, ...newAccommodations] : newAccommodations
+      })
+      setShowAccommodation(true)
+    }
+
+    if (data.carRental && data.carRental.length > 0) {
+      let nextId = Date.now() + 2000
+      const newRentals = data.carRental.map((r) => ({
+        _id: nextId++,
+        company: r.company || "",
+        pickupLocation: r.pickupLocation || "",
+        pickupTime: r.pickupTime || "",
+        returnLocation: r.returnLocation || "",
+        returnTime: r.returnTime || "",
+        additionalDetails: r.additionalDetails || "",
+      }))
+      setCarRentals((prev) => {
+        const nonEmpty = prev.filter((r) => r.company || r.pickupLocation || r.returnLocation)
+        return nonEmpty.length > 0 ? [...nonEmpty, ...newRentals] : newRentals
+      })
+      setShowCarRentals(true)
+    }
+  }, [destination, startDate, endDate])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitting(true)
 
     try {
+      const flightsData = flights
+        .filter((f) => f.flightNumber || f.departureAirport || f.arrivalAirport)
+        .map(({ _id, ...rest }) => rest)
+
       const accommodationData = accommodations
         .filter((a) => a.name || a.address || a.checkIn || a.checkOut || a.contact || a.bookingReference)
         .map(({ _id, ...rest }) => rest)
-      const accommodation = accommodationData.length > 0 ? accommodationData : undefined
 
-      const flights =
-        outFlightNum || retFlightNum
-          ? {
-              outbound: {
-                flightNumber: outFlightNum,
-                departureAirport: outDepartAirport,
-                departureTime: outDepartTime,
-                arrivalAirport: outArriveAirport,
-                arrivalTime: outArriveTime,
-              },
-              return: {
-                flightNumber: retFlightNum,
-                departureAirport: retDepartAirport,
-                departureTime: retDepartTime,
-                arrivalAirport: retArriveAirport,
-                arrivalTime: retArriveTime,
-              },
-            }
-          : undefined
-
-      const carRental =
-        carCompany || carPickup || carReturn || carDetails
-          ? {
-              company: carCompany,
-              pickupLocation: carPickup,
-              returnLocation: carReturn,
-              additionalDetails: carDetails,
-            }
-          : undefined
+      const carRentalData = carRentals
+        .filter((r) => r.company || r.pickupLocation || r.returnLocation)
+        .map(({ _id, ...rest }) => rest)
 
       const res = await fetch("/api/trips", {
         method: "POST",
@@ -151,9 +141,9 @@ export function TripForm() {
           destination,
           startDate,
           endDate,
-          accommodation,
-          flights,
-          carRental,
+          flights: flightsData.length > 0 ? flightsData : undefined,
+          accommodation: accommodationData.length > 0 ? accommodationData : undefined,
+          carRental: carRentalData.length > 0 ? carRentalData : undefined,
         }),
       })
 
@@ -179,82 +169,22 @@ export function TripForm() {
         </div>
       </div>
 
-      {/* Section 2: Accommodation */}
-      <CollapsibleSection title="לינה">
-        <div className="flex flex-col gap-4">
-          {accommodations.map((acc, idx) => (
-            <div key={acc._id} className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-600 relative">
-              {accommodations.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => setAccommodations((prev) => prev.filter((_, i) => i !== idx))}
-                  className="absolute top-2 left-2 text-zinc-400 hover:text-red-500 text-lg leading-none"
-                >
-                  ×
-                </button>
-              )}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <InputField label="שם" value={acc.name} onChange={(v) => setAccommodations((prev) => prev.map((a, i) => i === idx ? { ...a, name: v } : a))} />
-                <InputField label="כתובת" value={acc.address} onChange={(v) => setAccommodations((prev) => prev.map((a, i) => i === idx ? { ...a, address: v } : a))} />
-                <InputField label="צ'ק-אין" type="datetime-local" value={acc.checkIn} onChange={(v) => setAccommodations((prev) => prev.map((a, i) => i === idx ? { ...a, checkIn: v } : a))} />
-                <InputField label="צ'ק-אאוט" type="datetime-local" value={acc.checkOut} onChange={(v) => setAccommodations((prev) => prev.map((a, i) => i === idx ? { ...a, checkOut: v } : a))} />
-                <InputField label="פרטי קשר" value={acc.contact} onChange={(v) => setAccommodations((prev) => prev.map((a, i) => i === idx ? { ...a, contact: v } : a))} />
-                <InputField label="מספר הזמנה" value={acc.bookingReference} onChange={(v) => setAccommodations((prev) => prev.map((a, i) => i === idx ? { ...a, bookingReference: v } : a))} />
-              </div>
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={() => setAccommodations((prev) => [...prev, makeEmptyAccommodation()])}
-            className="self-start rounded-lg border border-dashed border-zinc-300 px-4 py-2 text-sm text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-600 dark:text-zinc-400"
-          >
-            + הוסף לינה
-          </button>
-        </div>
-      </CollapsibleSection>
+      {/* Section 2: File Upload */}
+      <FileUploadZone onExtracted={handleExtracted} />
 
       {/* Section 3: Flights */}
-      <CollapsibleSection title="טיסות">
-        <div className="mb-4">
-          <h3 className="mb-3 text-sm font-semibold text-zinc-600 dark:text-zinc-400">טיסת הלוך</h3>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <InputField label="מספר טיסה" value={outFlightNum} onChange={setOutFlightNum} />
-            <div />
-            <InputField label="שדה תעופה - יציאה" value={outDepartAirport} onChange={setOutDepartAirport} />
-            <InputField label="שעת יציאה" type="datetime-local" value={outDepartTime} onChange={setOutDepartTime} />
-            <InputField label="שדה תעופה - נחיתה" value={outArriveAirport} onChange={setOutArriveAirport} />
-            <InputField label="שעת נחיתה" type="datetime-local" value={outArriveTime} onChange={setOutArriveTime} />
-          </div>
-        </div>
-        <div>
-          <h3 className="mb-3 text-sm font-semibold text-zinc-600 dark:text-zinc-400">טיסת חזור</h3>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <InputField label="מספר טיסה" value={retFlightNum} onChange={setRetFlightNum} />
-            <div />
-            <InputField label="שדה תעופה - יציאה" value={retDepartAirport} onChange={setRetDepartAirport} />
-            <InputField label="שעת יציאה" type="datetime-local" value={retDepartTime} onChange={setRetDepartTime} />
-            <InputField label="שדה תעופה - נחיתה" value={retArriveAirport} onChange={setRetArriveAirport} />
-            <InputField label="שעת נחיתה" type="datetime-local" value={retArriveTime} onChange={setRetArriveTime} />
-          </div>
-        </div>
+      <CollapsibleSection title="טיסות" open={showFlights} onToggle={() => setShowFlights((v) => !v)}>
+        <FlightsList items={flights} onChange={setFlights} />
       </CollapsibleSection>
 
-      {/* Section 4: Car Rental */}
-      <CollapsibleSection title="השכרת רכב">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <InputField label="חברה" value={carCompany} onChange={setCarCompany} />
-          <InputField label="מיקום איסוף" value={carPickup} onChange={setCarPickup} />
-          <InputField label="מיקום החזרה" value={carReturn} onChange={setCarReturn} />
-          <label className="flex flex-col gap-1 sm:col-span-2">
-            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">פרטים נוספים</span>
-            <textarea
-              value={carDetails}
-              onChange={(e) => setCarDetails(e.target.value)}
-              rows={3}
-              className="rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-700"
-            />
-          </label>
-        </div>
+      {/* Section 4: Accommodation */}
+      <CollapsibleSection title="לינה" open={showAccommodation} onToggle={() => setShowAccommodation((v) => !v)}>
+        <AccommodationsList items={accommodations} onChange={setAccommodations} />
+      </CollapsibleSection>
+
+      {/* Section 5: Car Rentals */}
+      <CollapsibleSection title="השכרת רכב" open={showCarRentals} onToggle={() => setShowCarRentals((v) => !v)}>
+        <CarRentalsList items={carRentals} onChange={setCarRentals} />
       </CollapsibleSection>
 
       <button
