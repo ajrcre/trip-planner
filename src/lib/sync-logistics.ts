@@ -1,25 +1,5 @@
 import { prisma } from "@/lib/prisma"
-
-// === JSON field interfaces ===
-
-interface FlightLeg {
-  flightNumber?: string
-  departureAirport?: string
-  departureTime?: string // ISO datetime string
-  arrivalAirport?: string
-  arrivalTime?: string // ISO datetime string
-}
-
-interface FlightsData {
-  outbound?: FlightLeg
-  return?: FlightLeg
-}
-
-interface CarRentalData {
-  company?: string
-  pickupLocation?: string
-  returnLocation?: string
-}
+import { normalizeFlights, normalizeCarRentals, type FlightLeg, type CarRental } from "./normalizers"
 
 // === Time helpers ===
 
@@ -124,9 +104,6 @@ export async function syncLogisticsActivities(
     dayPlanByDate.set(dateStr, dp.id)
   }
 
-  const flights = (trip.flights as FlightsData | null) ?? {}
-  const carRental = (trip.carRental as CarRentalData | null) ?? {}
-
   const activitiesToCreate: {
     dayPlanId: string
     sortOrder: number
@@ -142,144 +119,117 @@ export async function syncLogisticsActivities(
     return filtered.length > 0 ? filtered.join(" - ") : null
   }
 
-  // === Flight departure (outbound) ===
-  if (flights.outbound?.departureTime) {
-    const dateStr = isoToDateStr(flights.outbound.departureTime)
-    const dayPlanId = dayPlanByDate.get(dateStr)
-    if (dayPlanId) {
-      const depTime = isoToTime(flights.outbound.departureTime)
-      activitiesToCreate.push({
-        dayPlanId,
-        sortOrder: 0,
-        timeStart: subtractMinutes(depTime, preFlightArrivalMinutes),
-        timeEnd: depTime,
-        type: "flight_departure",
-        notes: joinNotes(
-          flights.outbound.flightNumber,
-          flights.outbound.departureAirport
-        ),
-      })
+  const flights = normalizeFlights(trip.flights)
+    .filter((f) => f.departureTime || f.arrivalTime)
+    .sort((a, b) => {
+      const aTime = a.departureTime || a.arrivalTime || ""
+      const bTime = b.departureTime || b.arrivalTime || ""
+      return aTime.localeCompare(bTime)
+    })
+
+  // === Flight activities ===
+  for (let i = 0; i < flights.length; i++) {
+    const flight = flights[i]
+
+    if (flight.departureTime) {
+      const dateStr = isoToDateStr(flight.departureTime)
+      const dayPlanId = dayPlanByDate.get(dateStr)
+      if (dayPlanId) {
+        const depTime = isoToTime(flight.departureTime)
+        activitiesToCreate.push({
+          dayPlanId,
+          sortOrder: i * 10,
+          timeStart: subtractMinutes(depTime, preFlightArrivalMinutes),
+          timeEnd: depTime,
+          type: "flight_departure",
+          notes: joinNotes(flight.flightNumber, flight.departureAirport),
+        })
+      }
+    }
+
+    if (flight.arrivalTime) {
+      const dateStr = isoToDateStr(flight.arrivalTime)
+      const dayPlanId = dayPlanByDate.get(dateStr)
+      if (dayPlanId) {
+        activitiesToCreate.push({
+          dayPlanId,
+          sortOrder: i * 10 + 1,
+          timeStart: isoToTime(flight.arrivalTime),
+          timeEnd: null,
+          type: "flight_arrival",
+          notes: joinNotes(flight.flightNumber, flight.arrivalAirport),
+        })
+      }
     }
   }
 
-  // === Flight arrival (outbound) ===
-  if (flights.outbound?.arrivalTime) {
-    const dateStr = isoToDateStr(flights.outbound.arrivalTime)
-    const dayPlanId = dayPlanByDate.get(dateStr)
-    if (dayPlanId) {
-      activitiesToCreate.push({
-        dayPlanId,
-        sortOrder: 1,
-        timeStart: isoToTime(flights.outbound.arrivalTime),
-        timeEnd: null,
-        type: "flight_arrival",
-        notes: joinNotes(
-          flights.outbound.flightNumber,
-          flights.outbound.arrivalAirport
-        ),
-      })
-    }
-  }
+  const carRentals = normalizeCarRentals(trip.carRental)
 
-  // === Flight departure (return) ===
-  if (flights.return?.departureTime) {
-    const dateStr = isoToDateStr(flights.return.departureTime)
-    const dayPlanId = dayPlanByDate.get(dateStr)
-    if (dayPlanId) {
-      const depTime = isoToTime(flights.return.departureTime)
-      activitiesToCreate.push({
-        dayPlanId,
-        sortOrder: 900,
-        timeStart: subtractMinutes(depTime, preFlightArrivalMinutes),
-        timeEnd: depTime,
-        type: "flight_departure",
-        notes: joinNotes(
-          flights.return.flightNumber,
-          flights.return.departureAirport
-        ),
-      })
-    }
-  }
+  for (let j = 0; j < carRentals.length; j++) {
+    const rental = carRentals[j]
 
-  // === Flight arrival (return) ===
-  if (flights.return?.arrivalTime) {
-    const dateStr = isoToDateStr(flights.return.arrivalTime)
-    const dayPlanId = dayPlanByDate.get(dateStr)
-    if (dayPlanId) {
-      activitiesToCreate.push({
-        dayPlanId,
-        sortOrder: 901,
-        timeStart: isoToTime(flights.return.arrivalTime),
-        timeEnd: null,
-        type: "flight_arrival",
-        notes: joinNotes(
-          flights.return.flightNumber,
-          flights.return.arrivalAirport
-        ),
-      })
-    }
-  }
+    // === Car pickup ===
+    if (rental.company || rental.pickupLocation) {
+      let pickupDateStr: string
+      let pickupTimeStart: string | null = null
 
-  // === Car pickup ===
-  if (carRental.company || carRental.pickupLocation) {
-    // Day: same as outbound flight arrival date, or trip startDate
-    let pickupDateStr: string
-    let pickupTimeStart: string | null = null
+      if (rental.pickupTime) {
+        pickupDateStr = isoToDateStr(rental.pickupTime)
+        pickupTimeStart = isoToTime(rental.pickupTime)
+      } else if ((flights.length === 0 || flights.length === 2) && flights[0]?.arrivalTime) {
+        pickupDateStr = isoToDateStr(flights[0].arrivalTime)
+        pickupTimeStart = isoToTime(flights[0].arrivalTime)
+      } else {
+        const sd = trip.startDate
+        pickupDateStr = `${sd.getFullYear()}-${String(sd.getMonth() + 1).padStart(2, "0")}-${String(sd.getDate()).padStart(2, "0")}`
+      }
 
-    if (flights.outbound?.arrivalTime) {
-      pickupDateStr = isoToDateStr(flights.outbound.arrivalTime)
-      pickupTimeStart = isoToTime(flights.outbound.arrivalTime)
-    } else {
-      const sd = trip.startDate
-      pickupDateStr = `${sd.getFullYear()}-${String(sd.getMonth() + 1).padStart(2, "0")}-${String(sd.getDate()).padStart(2, "0")}`
-    }
-
-    const dayPlanId = dayPlanByDate.get(pickupDateStr)
-    if (dayPlanId) {
-      activitiesToCreate.push({
-        dayPlanId,
-        sortOrder: 2,
-        timeStart: pickupTimeStart,
-        timeEnd:
-          pickupTimeStart !== null
+      const dayPlanId = dayPlanByDate.get(pickupDateStr)
+      if (dayPlanId) {
+        activitiesToCreate.push({
+          dayPlanId,
+          sortOrder: 500 + j * 10,
+          timeStart: pickupTimeStart,
+          timeEnd: pickupTimeStart !== null
             ? addMinutes(pickupTimeStart, carPickupDurationMinutes)
             : null,
-        type: "car_pickup",
-        notes: joinNotes(carRental.company, carRental.pickupLocation),
-      })
-    }
-  }
-
-  // === Car return ===
-  if (carRental.company || carRental.returnLocation) {
-    let returnDateStr: string
-    let returnTimeStart: string | null = null
-
-    if (flights.return?.departureTime) {
-      returnDateStr = isoToDateStr(flights.return.departureTime)
-      const depTime = isoToTime(flights.return.departureTime)
-      returnTimeStart = subtractMinutes(
-        depTime,
-        preFlightArrivalMinutes + carReturnDurationMinutes
-      )
-    } else {
-      const ed = trip.endDate
-      returnDateStr = `${ed.getFullYear()}-${String(ed.getMonth() + 1).padStart(2, "0")}-${String(ed.getDate()).padStart(2, "0")}`
+          type: "car_pickup",
+          notes: joinNotes(rental.company, rental.pickupLocation),
+        })
+      }
     }
 
-    const dayPlanId = dayPlanByDate.get(returnDateStr)
-    if (dayPlanId) {
-      activitiesToCreate.push({
-        dayPlanId,
-        sortOrder: 899,
-        timeStart: returnTimeStart,
-        timeEnd:
-          returnTimeStart !== null
+    // === Car return ===
+    if (rental.company || rental.returnLocation) {
+      let returnDateStr: string
+      let returnTimeStart: string | null = null
+
+      if (rental.returnTime) {
+        returnDateStr = isoToDateStr(rental.returnTime)
+        returnTimeStart = isoToTime(rental.returnTime)
+      } else if ((flights.length === 0 || flights.length === 2) && flights[flights.length - 1]?.departureTime) {
+        const lastFlight = flights[flights.length - 1]
+        returnDateStr = isoToDateStr(lastFlight.departureTime!)
+        const depTime = isoToTime(lastFlight.departureTime!)
+        returnTimeStart = subtractMinutes(depTime, preFlightArrivalMinutes + carReturnDurationMinutes)
+      } else {
+        const ed = trip.endDate
+        returnDateStr = `${ed.getFullYear()}-${String(ed.getMonth() + 1).padStart(2, "0")}-${String(ed.getDate()).padStart(2, "0")}`
+      }
+
+      const dayPlanId = dayPlanByDate.get(returnDateStr)
+      if (dayPlanId) {
+        activitiesToCreate.push({
+          dayPlanId,
+          sortOrder: 500 + j * 10 + 1,
+          timeStart: returnTimeStart,
+          timeEnd: returnTimeStart !== null
             ? addMinutes(returnTimeStart, carReturnDurationMinutes)
             : null,
-        type: "car_return",
-        notes: joinNotes(carRental.company, carRental.returnLocation),
-      })
+          type: "car_return",
+          notes: joinNotes(rental.company, rental.returnLocation),
+        })
+      }
     }
   }
 
