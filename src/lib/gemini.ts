@@ -12,22 +12,16 @@ function getClient() {
 }
 
 export interface ExtractedTripDetails {
-  flights: {
-    outbound?: {
-      flightNumber?: string | null
-      departureAirport?: string | null
-      departureTime?: string | null
-      arrivalAirport?: string | null
-      arrivalTime?: string | null
-    } | null
-    return?: {
-      flightNumber?: string | null
-      departureAirport?: string | null
-      departureTime?: string | null
-      arrivalAirport?: string | null
-      arrivalTime?: string | null
-    } | null
-  } | null
+  destination?: string | null
+  startDate?: string | null
+  endDate?: string | null
+  flights: Array<{
+    flightNumber?: string | null
+    departureAirport?: string | null
+    departureTime?: string | null
+    arrivalAirport?: string | null
+    arrivalTime?: string | null
+  }> | null
   accommodation: Array<{
     name?: string | null
     address?: string | null
@@ -36,32 +30,43 @@ export interface ExtractedTripDetails {
     contact?: string | null
     bookingReference?: string | null
   }> | null
-  carRental: {
+  carRental: Array<{
     company?: string | null
     pickupLocation?: string | null
+    pickupTime?: string | null
     returnLocation?: string | null
+    returnTime?: string | null
     additionalDetails?: string | null
-  } | null
+  }> | null
 }
 
 const EXTRACTION_PROMPT = `אתה מערכת לחילוץ מידע ממסמכי נסיעות.
 נתח את הקובץ המצורף וחלץ ממנו את פרטי הנסיעה הבאים, אם הם קיימים במסמך.
 החזר את התוצאה כ-JSON בלבד, בלי טקסט נוסף, בפורמט הבא:
 {
-  "flights": {
-    "outbound": { "flightNumber": "...", "departureAirport": "...", "departureTime": "YYYY-MM-DDTHH:mm", "arrivalAirport": "...", "arrivalTime": "YYYY-MM-DDTHH:mm" },
-    "return": { "flightNumber": "...", "departureAirport": "...", "departureTime": "YYYY-MM-DDTHH:mm", "arrivalAirport": "...", "arrivalTime": "YYYY-MM-DDTHH:mm" }
-  },
-  "accommodation": [{ "name": "...", "address": "...", "checkIn": "YYYY-MM-DDTHH:mm", "checkOut": "YYYY-MM-DDTHH:mm", "contact": "...", "bookingReference": "..." }],
-  "carRental": { "company": "...", "pickupLocation": "...", "returnLocation": "...", "additionalDetails": "..." }
+  "destination": "שם היעד",
+  "startDate": "YYYY-MM-DD",
+  "endDate": "YYYY-MM-DD",
+  "flights": [
+    { "flightNumber": "...", "departureAirport": "...", "departureTime": "YYYY-MM-DDTHH:mm", "arrivalAirport": "...", "arrivalTime": "YYYY-MM-DDTHH:mm" }
+  ],
+  "accommodation": [
+    { "name": "...", "address": "...", "checkIn": "YYYY-MM-DDTHH:mm", "checkOut": "YYYY-MM-DDTHH:mm", "contact": "...", "bookingReference": "..." }
+  ],
+  "carRental": [
+    { "company": "...", "pickupLocation": "...", "pickupTime": "YYYY-MM-DDTHH:mm", "returnLocation": "...", "returnTime": "YYYY-MM-DDTHH:mm", "additionalDetails": "..." }
+  ]
 }
 
 כללים:
 - החזר רק JSON תקין, בלי markdown, בלי backticks, בלי הסברים.
 - אם שדה לא נמצא במסמך, השתמש ב-null.
-- אם קטגוריה שלמה (טיסות/לינה/רכב) לא נמצאת, השתמש ב-null עבור האובייקט כולו.
+- אם קטגוריה שלמה (טיסות/לינה/רכב) לא נמצאת, השתמש ב-null עבור המערך כולו.
+- flights הוא מערך. כל רגל טיסה (כולל קונקשנים, טיסות פנימיות, טיסת חזור) היא אובייקט נפרד במערך.
 - accommodation הוא מערך. אם יש כמה בתי מלון או מקומות לינה, החזר כל אחד כאובייקט נפרד במערך.
-- תאריכים בפורמט ISO: YYYY-MM-DDTHH:mm
+- carRental הוא מערך. אם יש כמה השכרות רכב, החזר כל אחת כאובייקט נפרד במערך.
+- אם ניתן לזהות את יעד הנסיעה, תאריך התחלה או תאריך סיום, מלא אותם. אם לא, השתמש ב-null.
+- תאריכים בפורמט ISO: YYYY-MM-DDTHH:mm (או YYYY-MM-DD עבור startDate/endDate)
 - שמות שדות תעופה בקוד IATA אם אפשר (לדוגמה: TLV, JFK).`
 
 export async function extractTripDetails(
