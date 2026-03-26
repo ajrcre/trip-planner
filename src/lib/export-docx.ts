@@ -30,19 +30,19 @@ interface TripData {
     bookingReference?: string
   }> | null
   flights: Array<{
-    flightNumber?: string
-    departureAirport?: string
-    departureTime?: string
-    arrivalAirport?: string
-    arrivalTime?: string
+    flightNumber?: string | null
+    departureAirport?: string | null
+    departureTime?: string | null
+    arrivalAirport?: string | null
+    arrivalTime?: string | null
   }> | null
   carRental: Array<{
-    company?: string
-    pickupLocation?: string
-    pickupTime?: string
-    returnLocation?: string
-    returnTime?: string
-    additionalDetails?: string
+    company?: string | null
+    pickupLocation?: string | null
+    pickupTime?: string | null
+    returnLocation?: string | null
+    returnTime?: string | null
+    additionalDetails?: string | null
   }> | null
   attractions: Array<{
     name: string

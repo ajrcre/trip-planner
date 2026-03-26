@@ -1,15 +1,16 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+
+import { getAuthSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { generateTripDocx } from "@/lib/export-docx"
 import { normalizeAccommodations } from "@/lib/accommodations"
+import { normalizeFlights, normalizeCarRentals } from "@/lib/normalizers"
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ tripId: string }> }
 ) {
-  const session = await getServerSession(authOptions)
+  const session = await getAuthSession()
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
@@ -66,8 +67,8 @@ export async function GET(
     startDate: trip.startDate.toISOString(),
     endDate: trip.endDate.toISOString(),
     accommodation: normalizeAccommodations(trip.accommodation),
-    flights: trip.flights as TripFlights | null,
-    carRental: trip.carRental as TripCarRental | null,
+    flights: normalizeFlights(trip.flights),
+    carRental: normalizeCarRentals(trip.carRental),
     attractions: trip.attractions,
     restaurants: trip.restaurants,
     dayPlans: trip.dayPlans.map((dp) => ({
@@ -98,26 +99,4 @@ type TripAccommodation = {
   bookingReference?: string
 }
 
-type TripFlights = {
-  outbound?: {
-    flightNumber?: string
-    departureAirport?: string
-    departureTime?: string
-    arrivalAirport?: string
-    arrivalTime?: string
-  }
-  return?: {
-    flightNumber?: string
-    departureAirport?: string
-    departureTime?: string
-    arrivalAirport?: string
-    arrivalTime?: string
-  }
-}
 
-type TripCarRental = {
-  company?: string
-  pickupLocation?: string
-  returnLocation?: string
-  additionalDetails?: string
-}
