@@ -1,7 +1,13 @@
 "use client"
 
 import { useState, useCallback, useEffect, useRef } from "react"
-import { FileUploadExtractor } from "@/components/trips/FileUploadExtractor"
+import { FileUploadZone } from "./FileUploadZone"
+import { MergeReview } from "./MergeReview"
+import { FlightsList, makeEmptyFlight, type FlightFormData } from "./FlightsList"
+import { AccommodationsList, makeEmptyAccommodation, type AccommodationFormData } from "./AccommodationsList"
+import { CarRentalsList, makeEmptyCarRental, type CarRentalFormData } from "./CarRentalsList"
+import { normalizeFlights, normalizeCarRentals } from "@/lib/normalizers"
+import type { ExtractedTripDetails } from "@/lib/gemini"
 import { TripMap } from "@/components/maps/TripMap"
 import { DiscoveryPanel } from "@/components/attractions/DiscoveryPanel"
 import { AttractionTable } from "@/components/attractions/AttractionTable"
@@ -28,28 +34,8 @@ interface Trip {
     bookingReference?: string
     coordinates?: { lat: number; lng: number }
   }> | null
-  flights: {
-    outbound?: {
-      flightNumber?: string
-      departureAirport?: string
-      departureTime?: string
-      arrivalAirport?: string
-      arrivalTime?: string
-    }
-    return?: {
-      flightNumber?: string
-      departureAirport?: string
-      departureTime?: string
-      arrivalAirport?: string
-      arrivalTime?: string
-    }
-  } | null
-  carRental: {
-    company?: string
-    pickupLocation?: string
-    returnLocation?: string
-    additionalDetails?: string
-  } | null
+  flights: unknown
+  carRental: unknown
   destinationInfo: any | null
   attractions: unknown[]
   restaurants: unknown[]
@@ -93,136 +79,62 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
   )
 }
 
-function EditableField({
-  label,
-  value,
-  onChange,
-  type = "text",
-}: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  type?: string
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-        {label}
-      </label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
-      />
-    </div>
-  )
-}
-
-let _nextDashId = 1
 
 function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () => void }) {
   const accommodations = normalizeAccommodations(trip.accommodation)
-  const flights = trip.flights
-  const car = trip.carRental
+  const flightsData = normalizeFlights(trip.flights)
+  const carRentalsData = normalizeCarRentals(trip.carRental)
 
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
+  // Merge state
+  const [mergeData, setMergeData] = useState<ExtractedTripDetails | null>(null)
+  const [isSavingMerge, setIsSavingMerge] = useState(false)
+
   // Edit state
-  const [editFlights, setEditFlights] = useState({
-    outbound: {
-      flightNumber: flights?.outbound?.flightNumber || "",
-      departureAirport: flights?.outbound?.departureAirport || "",
-      departureTime: flights?.outbound?.departureTime || "",
-      arrivalAirport: flights?.outbound?.arrivalAirport || "",
-      arrivalTime: flights?.outbound?.arrivalTime || "",
-    },
-    return: {
-      flightNumber: flights?.return?.flightNumber || "",
-      departureAirport: flights?.return?.departureAirport || "",
-      departureTime: flights?.return?.departureTime || "",
-      arrivalAirport: flights?.return?.arrivalAirport || "",
-      arrivalTime: flights?.return?.arrivalTime || "",
-    },
-  })
-
-  const [editAccommodations, setEditAccommodations] = useState(
-    accommodations.map((a) => ({
-      _id: _nextDashId++,
-      name: a.name || "",
-      address: a.address || "",
-      checkIn: a.checkIn || "",
-      checkOut: a.checkOut || "",
-      contact: a.contact || "",
-      bookingReference: a.bookingReference || "",
-    }))
-  )
-
-  const [editCar, setEditCar] = useState({
-    company: car?.company || "",
-    pickupLocation: car?.pickupLocation || "",
-    returnLocation: car?.returnLocation || "",
-    additionalDetails: car?.additionalDetails || "",
-  })
+  const [editFlights, setEditFlights] = useState<FlightFormData[]>([makeEmptyFlight()])
+  const [editAccommodations, setEditAccommodations] = useState<AccommodationFormData[]>([makeEmptyAccommodation()])
+  const [editCarRentals, setEditCarRentals] = useState<CarRentalFormData[]>([makeEmptyCarRental()])
 
   const handleStartEdit = () => {
-    setEditFlights({
-      outbound: {
-        flightNumber: flights?.outbound?.flightNumber || "",
-        departureAirport: flights?.outbound?.departureAirport || "",
-        departureTime: flights?.outbound?.departureTime || "",
-        arrivalAirport: flights?.outbound?.arrivalAirport || "",
-        arrivalTime: flights?.outbound?.arrivalTime || "",
-      },
-      return: {
-        flightNumber: flights?.return?.flightNumber || "",
-        departureAirport: flights?.return?.departureAirport || "",
-        departureTime: flights?.return?.departureTime || "",
-        arrivalAirport: flights?.return?.arrivalAirport || "",
-        arrivalTime: flights?.return?.arrivalTime || "",
-      },
-    })
-    setEditAccommodations(
-      accommodations.map((a) => ({
-        _id: _nextDashId++,
-        name: a.name || "",
-        address: a.address || "",
-        checkIn: a.checkIn || "",
-        checkOut: a.checkOut || "",
-        contact: a.contact || "",
-        bookingReference: a.bookingReference || "",
-      }))
+    let id = Date.now()
+    setEditFlights(
+      flightsData.length > 0
+        ? flightsData.map(f => ({ _id: id++, flightNumber: f.flightNumber || "", departureAirport: f.departureAirport || "", departureTime: f.departureTime || "", arrivalAirport: f.arrivalAirport || "", arrivalTime: f.arrivalTime || "" }))
+        : [makeEmptyFlight()]
     )
-    setEditCar({
-      company: car?.company || "",
-      pickupLocation: car?.pickupLocation || "",
-      returnLocation: car?.returnLocation || "",
-      additionalDetails: car?.additionalDetails || "",
-    })
+    setEditAccommodations(
+      accommodations.length > 0
+        ? accommodations.map(a => ({ _id: id++, name: a.name || "", address: a.address || "", checkIn: a.checkIn || "", checkOut: a.checkOut || "", contact: a.contact || "", bookingReference: a.bookingReference || "" }))
+        : [makeEmptyAccommodation()]
+    )
+    setEditCarRentals(
+      carRentalsData.length > 0
+        ? carRentalsData.map(r => ({ _id: id++, company: r.company || "", pickupLocation: r.pickupLocation || "", pickupTime: r.pickupTime || "", returnLocation: r.returnLocation || "", returnTime: r.returnTime || "", additionalDetails: r.additionalDetails || "" }))
+        : [makeEmptyCarRental()]
+    )
     setIsEditing(true)
   }
 
   const handleSaveEdit = async () => {
     setIsSaving(true)
     try {
-      const hasFlights = Object.values(editFlights.outbound).some(Boolean) || Object.values(editFlights.return).some(Boolean)
-      const validAccommodations = editAccommodations
-        .filter((a) => a.name || a.address || a.checkIn || a.checkOut || a.contact || a.bookingReference)
+      const validFlights = editFlights
+        .filter(f => f.flightNumber || f.departureAirport || f.arrivalAirport)
         .map(({ _id, ...rest }) => rest)
-      const hasCar = Object.values(editCar).some(Boolean)
+      const validAccommodations = editAccommodations
+        .filter(a => a.name || a.address || a.checkIn || a.checkOut || a.contact || a.bookingReference)
+        .map(({ _id, ...rest }) => rest)
+      const validCarRentals = editCarRentals
+        .filter(r => r.company || r.pickupLocation || r.returnLocation)
+        .map(({ _id, ...rest }) => rest)
 
-      const body: Record<string, unknown> = {}
-      if (hasFlights) {
-        body.flights = {
-          outbound: Object.values(editFlights.outbound).some(Boolean) ? editFlights.outbound : null,
-          return: Object.values(editFlights.return).some(Boolean) ? editFlights.return : null,
-        }
-      } else {
-        body.flights = null
+      const body: Record<string, unknown> = {
+        flights: validFlights.length > 0 ? validFlights : null,
+        accommodation: validAccommodations.length > 0 ? validAccommodations : null,
+        carRental: validCarRentals.length > 0 ? validCarRentals : null,
       }
-      body.accommodation = validAccommodations.length > 0 ? validAccommodations : null
-      body.carRental = hasCar ? editCar : null
 
       const res = await fetch(`/api/trips/${trip.id}`, {
         method: "PUT",
@@ -241,79 +153,62 @@ function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () => void }
     }
   }
 
+  const handleExtracted = useCallback((data: ExtractedTripDetails, _fileName: string) => {
+    const hasExistingOverlap =
+      (flightsData.length > 0 && data.flights && data.flights.length > 0) ||
+      (accommodations.length > 0 && data.accommodation && data.accommodation.length > 0) ||
+      (carRentalsData.length > 0 && data.carRental && data.carRental.length > 0)
+
+    if (hasExistingOverlap) {
+      setMergeData(data)
+    } else {
+      const body: Record<string, unknown> = {}
+      if (data.flights?.length) body.flights = [...flightsData, ...data.flights]
+      if (data.accommodation?.length) body.accommodation = [...accommodations, ...data.accommodation]
+      if (data.carRental?.length) body.carRental = [...carRentalsData, ...data.carRental]
+      if (Object.keys(body).length > 0) {
+        fetch(`/api/trips/${trip.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }).then(() => onUpdated?.())
+      }
+    }
+  }, [trip.id, flightsData, accommodations, carRentalsData, onUpdated])
+
+  const handleMergeConfirm = useCallback(async (result: { flights: Record<string, unknown>[]; accommodation: Record<string, unknown>[]; carRental: Record<string, unknown>[] }) => {
+    setIsSavingMerge(true)
+    try {
+      await fetch(`/api/trips/${trip.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(result),
+      })
+      setMergeData(null)
+      onUpdated?.()
+    } finally {
+      setIsSavingMerge(false)
+    }
+  }, [trip.id, onUpdated])
+
   if (isEditing) {
     return (
       <div className="flex flex-col gap-6">
-        {/* Flights Edit */}
         <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
           <h3 className="mb-4 text-lg font-semibold">טיסות</h3>
-          <div className="flex flex-col gap-4">
-            <h4 className="text-sm font-semibold text-zinc-600 dark:text-zinc-400">טיסת הלוך</h4>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <EditableField label="מספר טיסה" value={editFlights.outbound.flightNumber} onChange={(v) => setEditFlights((p) => ({ ...p, outbound: { ...p.outbound, flightNumber: v } }))} />
-              <EditableField label="שדה תעופה יציאה" value={editFlights.outbound.departureAirport} onChange={(v) => setEditFlights((p) => ({ ...p, outbound: { ...p.outbound, departureAirport: v } }))} />
-              <EditableField label="זמן יציאה" value={editFlights.outbound.departureTime} onChange={(v) => setEditFlights((p) => ({ ...p, outbound: { ...p.outbound, departureTime: v } }))} type="datetime-local" />
-              <EditableField label="שדה תעופה נחיתה" value={editFlights.outbound.arrivalAirport} onChange={(v) => setEditFlights((p) => ({ ...p, outbound: { ...p.outbound, arrivalAirport: v } }))} />
-              <EditableField label="זמן נחיתה" value={editFlights.outbound.arrivalTime} onChange={(v) => setEditFlights((p) => ({ ...p, outbound: { ...p.outbound, arrivalTime: v } }))} type="datetime-local" />
-            </div>
-            <h4 className="mt-2 text-sm font-semibold text-zinc-600 dark:text-zinc-400">טיסת חזור</h4>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <EditableField label="מספר טיסה" value={editFlights.return.flightNumber} onChange={(v) => setEditFlights((p) => ({ ...p, return: { ...p.return, flightNumber: v } }))} />
-              <EditableField label="שדה תעופה יציאה" value={editFlights.return.departureAirport} onChange={(v) => setEditFlights((p) => ({ ...p, return: { ...p.return, departureAirport: v } }))} />
-              <EditableField label="זמן יציאה" value={editFlights.return.departureTime} onChange={(v) => setEditFlights((p) => ({ ...p, return: { ...p.return, departureTime: v } }))} type="datetime-local" />
-              <EditableField label="שדה תעופה נחיתה" value={editFlights.return.arrivalAirport} onChange={(v) => setEditFlights((p) => ({ ...p, return: { ...p.return, arrivalAirport: v } }))} />
-              <EditableField label="זמן נחיתה" value={editFlights.return.arrivalTime} onChange={(v) => setEditFlights((p) => ({ ...p, return: { ...p.return, arrivalTime: v } }))} type="datetime-local" />
-            </div>
-          </div>
+          <FlightsList items={editFlights} onChange={setEditFlights} />
         </div>
 
-        {/* Accommodation Edit */}
         <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
           <h3 className="mb-4 text-lg font-semibold">לינה</h3>
-          <div className="flex flex-col gap-4">
-            {editAccommodations.map((acc, idx) => (
-              <div key={acc._id} className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-600 relative">
-                {editAccommodations.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => setEditAccommodations((prev) => prev.filter((_, i) => i !== idx))}
-                    className="absolute top-2 left-2 text-zinc-400 hover:text-red-500 text-lg leading-none"
-                  >
-                    ×
-                  </button>
-                )}
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <EditableField label="שם" value={acc.name} onChange={(v) => setEditAccommodations((prev) => prev.map((a, i) => i === idx ? { ...a, name: v } : a))} />
-                  <EditableField label="כתובת" value={acc.address} onChange={(v) => setEditAccommodations((prev) => prev.map((a, i) => i === idx ? { ...a, address: v } : a))} />
-                  <EditableField label="צ'ק-אין" value={acc.checkIn} onChange={(v) => setEditAccommodations((prev) => prev.map((a, i) => i === idx ? { ...a, checkIn: v } : a))} type="datetime-local" />
-                  <EditableField label="צ'ק-אאוט" value={acc.checkOut} onChange={(v) => setEditAccommodations((prev) => prev.map((a, i) => i === idx ? { ...a, checkOut: v } : a))} type="datetime-local" />
-                  <EditableField label="פרטי קשר" value={acc.contact} onChange={(v) => setEditAccommodations((prev) => prev.map((a, i) => i === idx ? { ...a, contact: v } : a))} />
-                  <EditableField label="מספר הזמנה" value={acc.bookingReference} onChange={(v) => setEditAccommodations((prev) => prev.map((a, i) => i === idx ? { ...a, bookingReference: v } : a))} />
-                </div>
-              </div>
-            ))}
-            <button
-              type="button"
-              onClick={() => setEditAccommodations((prev) => [...prev, { _id: _nextDashId++, name: "", address: "", checkIn: "", checkOut: "", contact: "", bookingReference: "" }])}
-              className="self-start rounded-lg border border-dashed border-zinc-300 px-4 py-2 text-sm text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-600 dark:text-zinc-400"
-            >
-              + הוסף לינה
-            </button>
-          </div>
+          <AccommodationsList items={editAccommodations} onChange={setEditAccommodations} />
         </div>
 
-        {/* Car Rental Edit */}
         <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
           <h3 className="mb-4 text-lg font-semibold">השכרת רכב</h3>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <EditableField label="חברה" value={editCar.company} onChange={(v) => setEditCar((p) => ({ ...p, company: v }))} />
-            <EditableField label="מיקום איסוף" value={editCar.pickupLocation} onChange={(v) => setEditCar((p) => ({ ...p, pickupLocation: v }))} />
-            <EditableField label="מיקום החזרה" value={editCar.returnLocation} onChange={(v) => setEditCar((p) => ({ ...p, returnLocation: v }))} />
-            <EditableField label="פרטים נוספים" value={editCar.additionalDetails} onChange={(v) => setEditCar((p) => ({ ...p, additionalDetails: v }))} />
-          </div>
+          <CarRentalsList items={editCarRentals} onChange={setEditCarRentals} />
         </div>
 
-        {/* Save/Cancel */}
         <div className="flex gap-3">
           <button
             onClick={handleSaveEdit}
@@ -381,77 +276,67 @@ function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () => void }
       )}
 
       {/* Flights */}
-      {flights && (flights.outbound?.flightNumber || flights.return?.flightNumber) && (
+      {flightsData.length > 0 && (
         <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
           <h3 className="mb-3 text-lg font-semibold">טיסות</h3>
           <div className="flex flex-col gap-4">
-            {flights.outbound?.flightNumber && (
-              <div>
-                <h4 className="mb-2 text-sm font-semibold text-zinc-600 dark:text-zinc-400">טיסת הלוך</h4>
+            {flightsData.map((flight, idx) => (
+              <div key={idx} className={idx > 0 ? "border-t border-zinc-200 pt-4 dark:border-zinc-700" : ""}>
                 <div className="flex flex-col gap-1">
-                  <InfoRow label="מספר טיסה" value={flights.outbound.flightNumber} />
+                  <InfoRow label="מספר טיסה" value={flight.flightNumber} />
                   <InfoRow
                     label="יציאה"
-                    value={
-                      flights.outbound.departureAirport
-                        ? `${flights.outbound.departureAirport}${flights.outbound.departureTime ? ` - ${formatDateTime(flights.outbound.departureTime)}` : ""}`
-                        : undefined
-                    }
+                    value={flight.departureAirport
+                      ? `${flight.departureAirport}${flight.departureTime ? ` - ${formatDateTime(flight.departureTime)}` : ""}`
+                      : undefined}
                   />
                   <InfoRow
                     label="נחיתה"
-                    value={
-                      flights.outbound.arrivalAirport
-                        ? `${flights.outbound.arrivalAirport}${flights.outbound.arrivalTime ? ` - ${formatDateTime(flights.outbound.arrivalTime)}` : ""}`
-                        : undefined
-                    }
+                    value={flight.arrivalAirport
+                      ? `${flight.arrivalAirport}${flight.arrivalTime ? ` - ${formatDateTime(flight.arrivalTime)}` : ""}`
+                      : undefined}
                   />
                 </div>
               </div>
-            )}
-            {flights.return?.flightNumber && (
-              <div>
-                <h4 className="mb-2 text-sm font-semibold text-zinc-600 dark:text-zinc-400">טיסת חזור</h4>
-                <div className="flex flex-col gap-1">
-                  <InfoRow label="מספר טיסה" value={flights.return.flightNumber} />
-                  <InfoRow
-                    label="יציאה"
-                    value={
-                      flights.return.departureAirport
-                        ? `${flights.return.departureAirport}${flights.return.departureTime ? ` - ${formatDateTime(flights.return.departureTime)}` : ""}`
-                        : undefined
-                    }
-                  />
-                  <InfoRow
-                    label="נחיתה"
-                    value={
-                      flights.return.arrivalAirport
-                        ? `${flights.return.arrivalAirport}${flights.return.arrivalTime ? ` - ${formatDateTime(flights.return.arrivalTime)}` : ""}`
-                        : undefined
-                    }
-                  />
-                </div>
-              </div>
-            )}
+            ))}
           </div>
         </div>
       )}
 
-      {/* Car Rental */}
-      {car && (car.company || car.pickupLocation) && (
+      {/* Car Rentals */}
+      {carRentalsData.length > 0 && (
         <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
           <h3 className="mb-3 text-lg font-semibold">השכרת רכב</h3>
-          <div className="flex flex-col gap-2">
-            <InfoRow label="חברה" value={car.company} />
-            <InfoRow label="מיקום איסוף" value={car.pickupLocation} />
-            <InfoRow label="מיקום החזרה" value={car.returnLocation} />
-            <InfoRow label="פרטים נוספים" value={car.additionalDetails} />
+          <div className="flex flex-col gap-4">
+            {carRentalsData.map((rental, idx) => (
+              <div key={idx} className={idx > 0 ? "border-t border-zinc-200 pt-4 dark:border-zinc-700" : ""}>
+                <div className="flex flex-col gap-2">
+                  <InfoRow label="חברה" value={rental.company} />
+                  <InfoRow label="מיקום איסוף" value={rental.pickupLocation} />
+                  <InfoRow label="מיקום החזרה" value={rental.returnLocation} />
+                  <InfoRow label="פרטים נוספים" value={rental.additionalDetails} />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* File Upload Extractor */}
-      <FileUploadExtractor tripId={trip.id} existingAccommodation={trip.accommodation} onUpdated={onUpdated} />
+      {/* File Upload */}
+      <FileUploadZone tripId={trip.id} onExtracted={handleExtracted} />
+      {mergeData && (
+        <MergeReview
+          existingFlights={flightsData as unknown as Record<string, unknown>[]}
+          newFlights={(mergeData.flights || []) as unknown as Record<string, unknown>[]}
+          existingAccommodation={accommodations as unknown as Record<string, unknown>[]}
+          newAccommodation={(mergeData.accommodation || []) as unknown as Record<string, unknown>[]}
+          existingCarRentals={carRentalsData as unknown as Record<string, unknown>[]}
+          newCarRentals={(mergeData.carRental || []) as unknown as Record<string, unknown>[]}
+          onConfirm={handleMergeConfirm}
+          onCancel={() => setMergeData(null)}
+          isSaving={isSavingMerge}
+        />
+      )}
 
       {/* Map */}
       {(() => {
@@ -885,7 +770,7 @@ function ScheduleTab({ trip }: { trip: Trip }) {
         startDate: trip.startDate,
         endDate: trip.endDate,
         accommodation: trip.accommodation,
-        flights: trip.flights,
+        flights: trip.flights as { outbound?: { arrivalTime?: string }; return?: { departureTime?: string } } | null,
         attractions,
         restaurants,
       }}
