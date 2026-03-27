@@ -28,22 +28,30 @@ New `GroceryStore` Prisma model (simplified from Restaurant):
 | storeType | String? | e.g., supermarket, convenience, organic |
 | travelTimeMinutes | Int? | |
 | travelDistanceKm | Float? | |
-| status | String | want / maybe / rejected, default "want" |
+| status | String | want / maybe / rejected, default "maybe" (matches Restaurant/Attraction) |
 | dataLastUpdated | DateTime? | |
 | dataSource | String? | |
 | activities | Activity[] | Relation for schedule integration |
 | createdAt | DateTime | |
 | updatedAt | DateTime | |
 
+**Index:** `@@index([tripId])` (consistent with Restaurant/Attraction).
+
+**Schema changes required on other models:**
+- **Trip model:** Add `groceryStores GroceryStore[]` relation field.
+- **Activity model:** Add optional `groceryStoreId String?` FK and `groceryStore GroceryStore?` relation (mirrors `restaurantId`/`attractionId`).
+
 ## Part 2: API Routes
 
 ### New Grocery Store Routes
 
-- **`POST /api/trips/[tripId]/groceryStores/discover`** — Search for grocery stores via Google Places. Accepts `{ query?, types[], radius?, accommodationId? }`. Uses selected accommodation's coordinates for location bias and travel time calculation.
-- **`GET /api/trips/[tripId]/groceryStores`** — List all saved grocery stores for the trip.
-- **`POST /api/trips/[tripId]/groceryStores`** — Save a discovered grocery store with storeType, travel time, etc.
-- **`PUT /api/trips/[tripId]/groceryStores/[id]`** — Update status or storeType.
-- **`DELETE /api/trips/[tripId]/groceryStores/[id]`** — Delete a grocery store.
+- **`POST /api/trips/[tripId]/grocery-stores/discover`** — Search for grocery stores via Google Places. Accepts `{ query?, types[], radius?, accommodationId? }`. Uses selected accommodation's coordinates for location bias and travel time calculation.
+- **`GET /api/trips/[tripId]/grocery-stores`** — List all saved grocery stores for the trip.
+- **`POST /api/trips/[tripId]/grocery-stores`** — Save a discovered grocery store with storeType, travel time, etc.
+- **`PUT /api/trips/[tripId]/grocery-stores/[id]`** — Update status or storeType.
+- **`DELETE /api/trips/[tripId]/grocery-stores/[id]`** — Delete a grocery store.
+
+**Note:** URL paths use kebab-case (`grocery-stores`) per URL conventions, while the Prisma model uses PascalCase (`GroceryStore`).
 
 ### Modified Existing Routes
 
@@ -59,7 +67,7 @@ New `GroceryStore` Prisma model (simplified from Restaurant):
   - Location bias for search queries (searches near selected accommodation).
   - Travel time/distance calculated for each discovery result.
 - Does NOT recalculate travel times for already-saved items — they retain the values from when they were discovered.
-- Implementation: The generic `DiscoveryPanel<T>` receives an optional `accommodations` prop. When present with 2+ items, it renders the selector and passes the selected accommodation's ID/coordinates to the discover endpoint.
+- Implementation: The generic `DiscoveryPanel<T>` receives an optional `accommodations` prop (added to `DiscoveryPanelProps<T>`). When present with 2+ items, it renders the selector above the search bar. The selected accommodation's ID is included in the fetch body as `accommodationId` alongside the existing `query` field in `handleSearch`.
 
 ## Part 4: UI Components
 
@@ -78,12 +86,13 @@ New `GroceryStore` Prisma model (simplified from Restaurant):
 - Wraps generic `DiscoveryPanel` with grocery-specific config.
 - Quick filters: Supermarket, Convenience Store, Organic, Kosher, Local Market.
 - Green theme.
-- Save payload maps `storeType` from Google Places types.
+- Save payload maps `storeType` from Google Places types via a `mapStoreType` utility (similar to `mapCuisineType` in `cuisine-types.ts`).
 
 ### GroceryStoresTab
 - New dashboard tab in `TripDashboard`.
 - Same toggle pattern as restaurants: "My Stores" / "Discover" views.
-- Fetches from `/api/trips/{tripId}/groceryStores` on mount.
+- Fetches from `/api/trips/{tripId}/grocery-stores` on mount.
+- Tab position: after "Restaurants" in the dashboard tab order.
 - Tracks `savedPlaceIds` to prevent duplicate saves.
 
 ## Non-Goals
