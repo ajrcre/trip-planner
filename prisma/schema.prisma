@@ -115,6 +115,7 @@ model Trip {
 
   attractions  Attraction[]
   restaurants  Restaurant[]
+  groceryStores GroceryStore[]
   dayPlans     DayPlan[]
   packingItems PackingItem[]
   shoppingItems ShoppingItem[]
@@ -219,6 +220,40 @@ model Restaurant {
   @@index([tripId])
 }
 
+// === Grocery Stores ===
+
+model GroceryStore {
+  id     String @id @default(cuid())
+  tripId String
+  trip   Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  googlePlaceId String?
+  name          String
+  address       String?
+  lat           Float?
+  lng           Float?
+  phone         String?
+  website       String?
+  openingHours  Json?
+  photos        String[] @default([])
+
+  ratingGoogle      Float?
+  storeType         String?
+  travelTimeMinutes Int?
+  travelDistanceKm  Float?
+
+  status          String   @default("maybe")
+  dataLastUpdated DateTime?
+  dataSource      String?
+
+  activities Activity[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tripId])
+}
+
 // === Day Plan ===
 model DayPlan {
   id     String @id @default(cuid())
@@ -253,6 +288,8 @@ model Activity {
   attraction   Attraction? @relation(fields: [attractionId], references: [id])
   restaurantId String?
   restaurant   Restaurant? @relation(fields: [restaurantId], references: [id])
+  groceryStoreId String?
+  groceryStore   GroceryStore? @relation(fields: [groceryStoreId], references: [id])
 
   travelTimeToNextMinutes Int?
 
