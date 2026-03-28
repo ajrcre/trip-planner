@@ -44,6 +44,7 @@ export async function GET(
     include: {
       attractions: true,
       restaurants: true,
+      groceryStores: true,
       dayPlans: {
         include: { activities: true },
       },
