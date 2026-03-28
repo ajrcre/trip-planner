@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server"
 
-import { searchPlaces, calculateRoute } from "@/lib/google-maps"
+import { calculateRoute } from "@/lib/google-maps"
 import { normalizeAccommodations } from "@/lib/accommodations"
 import { requireTripAccess } from "@/lib/trip-access"
 import { mapStoreType } from "@/lib/store-types"
-import prisma from "@/lib/prisma"
+import { prisma } from "@/lib/prisma"
 
 export async function GET(
   request: Request,

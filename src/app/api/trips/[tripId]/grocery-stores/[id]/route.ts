@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { requireTripAccess } from "@/lib/trip-access"
-import prisma from "@/lib/prisma"
+import { prisma } from "@/lib/prisma"
 
 export async function PUT(
   request: Request,
