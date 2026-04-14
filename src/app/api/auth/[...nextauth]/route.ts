@@ -2,18 +2,22 @@ import { NextResponse } from "next/server"
 import NextAuth from "next-auth"
 import { authOptions, getAuthSession } from "@/lib/auth"
 
-const nextAuthHandler = NextAuth(authOptions)
+const handler = NextAuth(authOptions)
 
-async function handleGET(req: Request) {
-  // When BYPASS_AUTH is on and client requests the session, return the dev session
+async function handleGET(req: Request, ctx: { params: Promise<{ nextauth: string[] }> }) {
   if (
     process.env.BYPASS_AUTH === "true" &&
+    process.env.NODE_ENV !== "production" &&
     new URL(req.url).pathname === "/api/auth/session"
   ) {
     const session = await getAuthSession()
     return NextResponse.json(session ?? {})
   }
-  return nextAuthHandler(req as any, {} as any)
+  return handler(req as any, ctx as any)
 }
 
-export { handleGET as GET, nextAuthHandler as POST }
+async function handlePOST(req: Request, ctx: { params: Promise<{ nextauth: string[] }> }) {
+  return handler(req as any, ctx as any)
+}
+
+export { handleGET as GET, handlePOST as POST }
