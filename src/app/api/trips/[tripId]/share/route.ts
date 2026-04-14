@@ -3,29 +3,20 @@ import { NextResponse } from "next/server"
 import { getAuthSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { randomUUID } from "crypto"
+import { requireTripAccess } from "@/lib/trip-access"
 
 export async function POST(
   _request: Request,
   { params }: { params: Promise<{ tripId: string }> }
 ) {
-  const session = await getAuthSession()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
   const { tripId } = await params
 
-  const trip = await prisma.trip.findUnique({
-    where: { id: tripId },
-    include: { shares: true },
-  })
-  if (!trip) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 })
-  }
-  const isOwner = trip.userId === session.user.id
-  const isShared = trip.shares.some((s) => s.userId === session.user.id)
-  if (!isOwner && !isShared) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 })
+  const result = await requireTripAccess(tripId)
+  if (result instanceof NextResponse) return result
+  const { trip, role } = result
+
+  if (role === "viewer") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
   // Return existing token if one already exists
