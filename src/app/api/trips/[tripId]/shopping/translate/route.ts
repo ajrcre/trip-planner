@@ -12,8 +12,11 @@ export async function POST(
 
   const result = await requireTripAccess(tripId)
   if (result instanceof NextResponse) return result
+  const { trip, role } = result
 
-  const { trip } = result
+  if (role === "viewer") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
 
   const countryCode = (trip.destinationInfo as Record<string, unknown> | null)
     ?.countryCode as string | undefined

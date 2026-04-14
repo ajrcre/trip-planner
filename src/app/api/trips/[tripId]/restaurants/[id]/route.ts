@@ -11,6 +11,11 @@ export async function PUT(
 
   const result = await requireTripAccess(tripId)
   if (result instanceof NextResponse) return result
+  const { role } = result
+
+  if (role === "viewer") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
 
   const restaurant = await prisma.restaurant.findUnique({
     where: { id },
@@ -42,6 +47,11 @@ export async function DELETE(
 
   const result = await requireTripAccess(tripId)
   if (result instanceof NextResponse) return result
+  const { role } = result
+
+  if (role === "viewer") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
 
   const restaurant = await prisma.restaurant.findUnique({
     where: { id },

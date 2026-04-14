@@ -38,6 +38,11 @@ export async function POST(
 
   const result = await requireTripAccess(tripId)
   if (result instanceof NextResponse) return result
+  const { role } = result
+
+  if (role === "viewer") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
 
   const body = await request.json()
 
@@ -116,6 +121,11 @@ export async function PUT(
 
   const result = await requireTripAccess(tripId)
   if (result instanceof NextResponse) return result
+  const { role } = result
+
+  if (role === "viewer") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
 
   const url = new URL(request.url)
   const itemId = url.searchParams.get("itemId")
@@ -161,6 +171,11 @@ export async function DELETE(
 
   const result = await requireTripAccess(tripId)
   if (result instanceof NextResponse) return result
+  const { role } = result
+
+  if (role === "viewer") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
 
   const url = new URL(request.url)
   const itemId = url.searchParams.get("itemId")

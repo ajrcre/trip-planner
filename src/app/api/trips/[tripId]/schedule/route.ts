@@ -196,7 +196,11 @@ export async function POST(
 
   const result = await requireTripAccess(tripId)
   if (result instanceof NextResponse) return result
-  const { session, trip } = result
+  const { session, trip, role } = result
+
+  if (role === "viewer") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
 
   // Check if day plans already exist
   const existing = await prisma.dayPlan.findMany({

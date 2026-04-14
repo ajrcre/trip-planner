@@ -98,6 +98,14 @@ export async function POST(request: Request) {
 
   const result = await requireTripAccess(tripId)
   if (result instanceof NextResponse) return result
+  const { role } = result
+
+  if (role === "viewer") {
+    return NextResponse.json<ExecuteActionResponse>(
+      { success: false, error: "Forbidden" },
+      { status: 403 }
+    )
+  }
 
   try {
     const { payload } = proposal
