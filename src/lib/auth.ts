@@ -33,6 +33,33 @@ function getAllowedEmails(): string[] | null {
   return raw.split(",").map((e) => e.trim().toLowerCase()).filter(Boolean)
 }
 
+export async function resolveInvitesForUser(user: {
+  email?: string | null
+  id?: string | null
+}): Promise<void> {
+  if (!user.email || !user.id) return
+
+  const pending = await prisma.tripInvite.findMany({
+    where: { invitedEmail: user.email },
+  })
+
+  if (pending.length === 0) return
+
+  await prisma.$transaction([
+    prisma.tripShare.createMany({
+      data: pending.map((inv) => ({
+        tripId: inv.tripId,
+        userId: user.id!,
+        role: inv.role,
+      })),
+      skipDuplicates: true,
+    }),
+    prisma.tripInvite.deleteMany({
+      where: { invitedEmail: user.email },
+    }),
+  ])
+}
+
 export const authOptions: NextAuthOptions = {
   debug: process.env.NODE_ENV === "development",
   adapter: PrismaAdapter(prisma) as NextAuthOptions["adapter"],
@@ -44,9 +71,14 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     signIn: async ({ user }) => {
+      // 1. Allowlist check (existing behavior)
       const allowed = getAllowedEmails()
-      if (!allowed) return true
-      return allowed.includes(user.email?.toLowerCase() ?? "")
+      if (allowed && !allowed.includes(user.email?.toLowerCase() ?? "")) return false
+
+      // 2. Resolve pending invites (only runs if user passes allowlist)
+      await resolveInvitesForUser(user)
+
+      return true
     },
     session: async ({ session, user }) => {
       if (session.user) {
