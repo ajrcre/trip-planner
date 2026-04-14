@@ -55,7 +55,7 @@ export async function resolveInvitesForUser(user: {
       skipDuplicates: true,
     }),
     prisma.tripInvite.deleteMany({
-      where: { invitedEmail: user.email },
+      where: { id: { in: pending.map((inv) => inv.id) } },
     }),
   ])
 }
@@ -76,7 +76,11 @@ export const authOptions: NextAuthOptions = {
       if (allowed && !allowed.includes(user.email?.toLowerCase() ?? "")) return false
 
       // 2. Resolve pending invites (only runs if user passes allowlist)
-      await resolveInvitesForUser(user)
+      try {
+        await resolveInvitesForUser(user)
+      } catch (err) {
+        console.error("[auth] resolveInvitesForUser failed", err)
+      }
 
       return true
     },
