@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+import { getAuthSession } from "@/lib/auth"
+import { checkRateLimit } from "@/lib/rate-limit"
 import { prisma } from "@/lib/prisma"
+import { requireTripAccess } from "@/lib/trip-access"
 import type {
   ExecuteActionRequest,
   ExecuteActionResponse,
@@ -11,24 +12,9 @@ import type {
   PlanFullTripPayload,
   ProposedActivity,
 } from "@/types/ai-chat"
+import { resortActivitiesByTime } from "@/lib/sync-logistics"
 
 // ── Helpers ──
-
-async function verifyTripAccess(tripId: string, userId: string) {
-  const trip = await prisma.trip.findUnique({
-    where: { id: tripId },
-    include: { shares: true },
-  })
-
-  if (!trip) return null
-
-  const isOwner = trip.userId === userId
-  const isShared = trip.shares.some((s) => s.userId === userId)
-
-  if (!isOwner && !isShared) return null
-
-  return trip
-}
 
 function toDateString(d: Date): string {
   return d.toISOString().slice(0, 10)
@@ -56,7 +42,15 @@ function toActivityCreateData(
   dayPlanId: string,
   activities: ProposedActivity[]
 ) {
-  return activities.map((a, index) => ({
+  // Sort by timeStart before assigning sortOrder so activities are chronological
+  const sorted = [...activities].sort((a, b) => {
+    if (!a.timeStart && !b.timeStart) return 0
+    if (!a.timeStart) return 1
+    if (!b.timeStart) return -1
+    return a.timeStart.localeCompare(b.timeStart)
+  })
+
+  return sorted.map((a, index) => ({
     dayPlanId,
     sortOrder: index,
     timeStart: a.timeStart ?? null,
@@ -65,6 +59,7 @@ function toActivityCreateData(
     notes: a.notes ?? null,
     attractionId: a.attractionId ?? null,
     restaurantId: a.restaurantId ?? null,
+    restAccommodationIndex: a.restAccommodationIndex ?? null,
     travelTimeToNextMinutes: null as number | null,
   }))
 }
@@ -72,14 +67,6 @@ function toActivityCreateData(
 // ── POST handler ──
 
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
-    return NextResponse.json<ExecuteActionResponse>(
-      { success: false, error: "Unauthorized" },
-      { status: 401 }
-    )
-  }
-
   let body: ExecuteActionRequest
   try {
     body = await request.json()
@@ -99,13 +86,18 @@ export async function POST(request: Request) {
     )
   }
 
-  const trip = await verifyTripAccess(tripId, session.user.id)
-  if (!trip) {
-    return NextResponse.json<ExecuteActionResponse>(
-      { success: false, error: "Trip not found" },
-      { status: 404 }
-    )
+  const session = await getAuthSession()
+  if (session?.user) {
+    if (!checkRateLimit(session.user.email ?? session.user.id).allowed) {
+      return NextResponse.json<ExecuteActionResponse>(
+        { success: false, error: "Too many requests" },
+        { status: 429 }
+      )
+    }
   }
+
+  const result = await requireTripAccess(tripId)
+  if (result instanceof NextResponse) return result
 
   try {
     const { payload } = proposal
@@ -137,8 +129,12 @@ export async function POST(request: Request) {
             notes: activity.notes ?? null,
             attractionId: activity.attractionId ?? null,
             restaurantId: activity.restaurantId ?? null,
+            restAccommodationIndex: activity.restAccommodationIndex ?? null,
           },
         })
+
+        // Re-sort so the new activity appears in chronological order
+        await resortActivitiesByTime([dayPlan.id])
         break
       }
 

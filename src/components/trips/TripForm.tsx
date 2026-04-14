@@ -89,6 +89,7 @@ export function TripForm() {
         checkOut: a.checkOut || "",
         contact: a.contact || "",
         bookingReference: a.bookingReference || "",
+        website: "",
       }))
       setAccommodations((prev) => {
         const nonEmpty = prev.filter((a) => a.name || a.address || a.checkIn || a.checkOut)
