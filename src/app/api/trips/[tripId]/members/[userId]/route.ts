@@ -42,13 +42,23 @@ export async function DELETE(
   const { session, role } = result
 
   const isSelf = session.user.id === userId
+
+  // Owner cannot leave their own trip (spec: "Leave trip: n/a" for owner)
+  if (role === "owner" && isSelf) {
+    return NextResponse.json({ error: "Owner cannot leave their own trip" }, { status: 400 })
+  }
+
   if (!isSelf && role !== "owner") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
-  await prisma.tripShare.delete({
-    where: { tripId_userId: { tripId, userId } },
-  })
+  try {
+    await prisma.tripShare.delete({
+      where: { tripId_userId: { tripId, userId } },
+    })
+  } catch {
+    return NextResponse.json({ error: "Member not found" }, { status: 404 })
+  }
 
   return NextResponse.json({ ok: true })
 }

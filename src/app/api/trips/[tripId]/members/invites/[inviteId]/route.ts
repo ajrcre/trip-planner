@@ -16,7 +16,11 @@ export async function DELETE(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
-  await prisma.tripInvite.delete({ where: { id: inviteId } })
+  try {
+    await prisma.tripInvite.delete({ where: { id: inviteId, tripId } })
+  } catch {
+    return NextResponse.json({ error: "Invite not found" }, { status: 404 })
+  }
 
   return NextResponse.json({ ok: true })
 }

@@ -66,11 +66,12 @@ export async function POST(
   const body = await req.json()
   const { email, inviteRole = "viewer" } = body as { email: string; inviteRole?: string }
 
-  if (!email || !["editor", "viewer"].includes(inviteRole)) {
+  const normalizedEmail = email?.trim().toLowerCase() ?? ""
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)
+
+  if (!emailValid || !["editor", "viewer"].includes(inviteRole)) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 })
   }
-
-  const normalizedEmail = email.trim().toLowerCase()
 
   // Check if user already exists
   const existingUser = await prisma.user.findUnique({
