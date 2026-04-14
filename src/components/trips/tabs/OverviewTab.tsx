@@ -21,8 +21,8 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
   if (!value) return null
   return (
     <div className="flex gap-2 text-sm">
-      <span className="font-medium text-zinc-600 dark:text-zinc-400">{label}:</span>
-      <span>{value}</span>
+      <span className="shrink-0 font-medium text-zinc-600 dark:text-zinc-400">{label}:</span>
+      <span className="min-w-0 break-all">{value}</span>
     </div>
   )
 }
@@ -200,7 +200,7 @@ export function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () =>
 
       {/* Accommodation */}
       {accommodations.length > 0 && (
-        <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
+        <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
           <h3 className="mb-3 text-lg font-semibold">לינה</h3>
           <div className="flex flex-col gap-4">
             {accommodations.map((acc, idx) => (

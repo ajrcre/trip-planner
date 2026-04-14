@@ -46,7 +46,7 @@ export default function TripPage() {
 
   if (error || !trip) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-8 text-center">
+      <div className="mx-auto w-full max-w-3xl px-4 py-8 text-center">
         <p className="mb-4 text-lg text-zinc-500">הטיול לא נמצא</p>
         <Link
           href="/trips"
@@ -59,7 +59,7 @@ export default function TripPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
+    <div className="mx-auto w-full max-w-4xl px-4 py-8">
       <div className="mb-6">
         <Link
           href="/trips"

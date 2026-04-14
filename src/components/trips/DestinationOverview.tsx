@@ -99,16 +99,16 @@ export function DestinationOverview({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={`https://flagcdn.com/w160/${info.countryCode}.png`}
             alt={info.countryNameHebrew}
-            className="h-12 rounded shadow-sm"
+            className="h-12 shrink-0 rounded shadow-sm"
           />
-          <div>
-            <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+          <div className="min-w-0">
+            <h2 className="truncate text-2xl font-bold text-zinc-900 dark:text-zinc-100">
               {info.destinationNameHebrew}
             </h2>
             <p className="text-sm text-zinc-500">{info.countryNameHebrew}</p>
@@ -117,7 +117,7 @@ export function DestinationOverview({
         <button
           onClick={handleGenerate}
           disabled={isGenerating}
-          className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
         >
           <svg
             className="h-4 w-4"
@@ -145,12 +145,12 @@ export function DestinationOverview({
           {glanceCards.map((card) => (
             <div
               key={card.label}
-              className="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-800"
+              className="overflow-hidden rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-800"
             >
               <div className="text-xs text-zinc-500">
                 {card.icon} {card.label}
               </div>
-              <div className="mt-1 text-sm font-medium text-zinc-900 dark:text-zinc-100">
+              <div className="mt-1 break-words text-sm font-medium text-zinc-900 dark:text-zinc-100">
                 {card.value}
               </div>
             </div>
@@ -245,6 +245,7 @@ export function DestinationOverview({
                   {group.category}
                 </h4>
               </div>
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-zinc-50 dark:bg-zinc-800/50">
@@ -285,6 +286,7 @@ export function DestinationOverview({
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           ))}
         </div>

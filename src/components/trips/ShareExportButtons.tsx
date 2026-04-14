@@ -100,7 +100,7 @@ export function ShareExportButtons({ tripId, tripName }: { tripId: string; tripN
       {showSharePopover && shareUrl && (
         <div
           ref={popoverRef}
-          className="absolute top-full left-0 z-50 mt-2 w-80 rounded-xl border border-zinc-200 bg-white p-4 shadow-lg dark:border-zinc-600 dark:bg-zinc-800"
+          className="absolute top-full left-0 z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-zinc-200 bg-white p-4 shadow-lg sm:w-80 dark:border-zinc-600 dark:bg-zinc-800"
         >
           <h4 className="mb-2 text-sm font-semibold">קישור לשיתוף</h4>
           <p className="mb-3 text-xs text-zinc-500">

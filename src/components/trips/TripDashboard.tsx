@@ -71,10 +71,10 @@ export function TripDashboard({ trip: initialTrip }: { trip: Trip }) {
   return (
     <div className="flex flex-col gap-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold">{trip.name}</h1>
-          <p className="mt-1 text-zinc-600 dark:text-zinc-400">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-3xl font-bold">{trip.name}</h1>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
             {trip.destination} | {formatDate(trip.startDate)} - {formatDate(trip.endDate)}
           </p>
         </div>

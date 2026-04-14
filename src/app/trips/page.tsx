@@ -43,7 +43,7 @@ export default function TripsPage() {
   if (!session?.user) return null
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
+    <div className="mx-auto w-full max-w-4xl px-4 py-8">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-3xl font-bold">הטיולים שלי</h1>
         <div className="flex gap-3">
