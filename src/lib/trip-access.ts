@@ -4,8 +4,17 @@ import type { Trip, TripShare } from "@/generated/prisma/client"
 
 import { getAuthSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import type { TripRole } from "@/types/sharing"
 
-export async function verifyTripAccess(tripId: string, userId: string) {
+export type TripAccessResult = {
+  trip: Trip & { shares: TripShare[] }
+  role: TripRole
+}
+
+export async function verifyTripAccess(
+  tripId: string,
+  userId: string
+): Promise<TripAccessResult | null> {
   const trip = await prisma.trip.findUnique({
     where: { id: tripId },
     include: { shares: true },
@@ -13,16 +22,20 @@ export async function verifyTripAccess(tripId: string, userId: string) {
 
   if (!trip) return null
 
-  const isOwner = trip.userId === userId
-  const isShared = trip.shares.some((s) => s.userId === userId)
+  if (trip.userId === userId) {
+    return { trip, role: "owner" }
+  }
 
-  if (!isOwner && !isShared) return null
+  const share = trip.shares.find((s) => s.userId === userId)
+  if (share) {
+    return { trip, role: share.role as "editor" | "viewer" }
+  }
 
-  return trip
+  return null
 }
 
 export async function requireTripAccess(tripId: string): Promise<
-  | { session: Session; trip: Trip & { shares: TripShare[] } }
+  | { session: Session; trip: Trip & { shares: TripShare[] }; role: TripRole }
   | NextResponse
 > {
   const session = await getAuthSession()
@@ -30,10 +43,10 @@ export async function requireTripAccess(tripId: string): Promise<
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const trip = await verifyTripAccess(tripId, session.user.id)
-  if (!trip) {
+  const result = await verifyTripAccess(tripId, session.user.id)
+  if (!result) {
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
 
-  return { session, trip }
+  return { session, trip: result.trip, role: result.role }
 }
