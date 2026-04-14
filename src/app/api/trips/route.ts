@@ -30,10 +30,11 @@ export async function GET() {
     orderBy: { startDate: "desc" },
   })
 
-  // Shared trips (where current user is a collaborator)
+  // Shared trips (where current user is a collaborator) — no shares join needed since members: [] for shared trips
   const sharedTripShares = await prisma.tripShare.findMany({
     where: { userId },
-    include: {
+    select: {
+      role: true,
       trip: {
         select: {
           id: true,
@@ -41,9 +42,6 @@ export async function GET() {
           destination: true,
           startDate: true,
           endDate: true,
-          shares: {
-            include: { user: { select: { name: true, image: true } } },
-          },
         },
       },
     },
@@ -53,8 +51,8 @@ export async function GET() {
     id: t.id,
     name: t.name,
     destination: t.destination,
-    startDate: t.startDate?.toISOString() ?? null,
-    endDate: t.endDate?.toISOString() ?? null,
+    startDate: t.startDate.toISOString(),
+    endDate: t.endDate.toISOString(),
     isShared: t.shares.length > 0,
     role: "owner" as const,
     members: t.shares.map((s) => ({ name: s.user.name, image: s.user.image })),
@@ -64,23 +62,19 @@ export async function GET() {
     id: s.trip.id,
     name: s.trip.name,
     destination: s.trip.destination,
-    startDate: s.trip.startDate?.toISOString() ?? null,
-    endDate: s.trip.endDate?.toISOString() ?? null,
+    startDate: s.trip.startDate.toISOString(),
+    endDate: s.trip.endDate.toISOString(),
     isShared: true,
-    role: s.role as "editor" | "viewer",
+    role: s.role === "editor" ? "editor" : "viewer",
     members: [],
   }))
 
-  // Merge, sort by startDate descending, deduplicate by id
-  const all = [...ownTripItems, ...sharedTripItems].sort((a, b) => {
-    if (!a.startDate) return 1
-    if (!b.startDate) return -1
-    return (
-      new Date(b.startDate).getTime() - new Date(a.startDate).getTime()
-    )
-  })
+  // Merge and sort by startDate descending; owner entry wins deduplication via Map (owner is spread first)
+  const merged = [...ownTripItems, ...sharedTripItems]
+  const deduped = [...new Map(merged.map((item) => [item.id, item])).values()]
+  deduped.sort((a, b) => new Date(b.startDate!).getTime() - new Date(a.startDate!).getTime())
 
-  return NextResponse.json(all)
+  return NextResponse.json(deduped)
 }
 
 export async function POST(request: Request) {
