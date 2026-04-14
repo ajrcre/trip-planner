@@ -48,6 +48,7 @@ model User {
   familyProfile FamilyProfile?
   trips         Trip[]
   sharedTrips   TripShare[]
+  sentInvites   TripInvite[]  @relation("SentInvites")
 }
 
 model VerificationToken {
@@ -60,20 +61,20 @@ model VerificationToken {
 
 // === Family Profile ===
 model FamilyProfile {
-  id     String @id @default(cuid())
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String  @id @default(cuid())
+  userId String? @unique
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trip   Trip?
 
-  attractionTypes    String[]  @default([])
-  foodPreferences    String[]  @default([])
-  noLayovers         Boolean   @default(true)
-  preferredFlightStart String?
-  preferredFlightEnd   String?
-  pace               String    @default("moderate")
-
-  preFlightArrivalMinutes  Int @default(180)
-  carPickupDurationMinutes Int @default(120)
-  carReturnDurationMinutes Int @default(60)
+  attractionTypes          String[]  @default([])
+  foodPreferences          String[]  @default([])
+  noLayovers               Boolean   @default(true)
+  preferredFlightStart     String?
+  preferredFlightEnd       String?
+  pace                     String    @default("moderate")
+  preFlightArrivalMinutes  Int       @default(180)
+  carPickupDurationMinutes Int       @default(120)
+  carReturnDurationMinutes Int       @default(60)
 
   members FamilyMember[]
 
@@ -119,7 +120,10 @@ model Trip {
   dayPlans     DayPlan[]
   packingItems PackingItem[]
   shoppingItems ShoppingItem[]
-  shares       TripShare[]
+  shares          TripShare[]
+  familyProfileId String?        @unique
+  familyProfile   FamilyProfile? @relation(fields: [familyProfileId], references: [id])
+  invites         TripInvite[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -136,6 +140,19 @@ model TripShare {
   role   String @default("viewer")
 
   @@unique([tripId, userId])
+}
+
+model TripInvite {
+  id           String   @id @default(cuid())
+  tripId       String
+  invitedEmail String
+  role         String   @default("viewer")
+  invitedBy    String
+  createdAt    DateTime @default(now())
+  trip         Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  inviter      User     @relation("SentInvites", fields: [invitedBy], references: [id])
+
+  @@unique([tripId, invitedEmail])
 }
 
 // === Attraction ===
