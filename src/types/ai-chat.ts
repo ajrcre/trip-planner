@@ -24,7 +24,7 @@ export type ActionType =
 export type ActionStatus = "pending" | "approved" | "rejected"
 
 export interface ProposedActivity {
-  type: string // "attraction" | "meal" | "rest" | "travel" | "custom" | "lodging"
+  type: string // "attraction" | "meal" | "rest" | "travel" | "grocery" | "custom" | "lodging"
   timeStart: string | null
   timeEnd: string | null
   notes: string | null
@@ -32,6 +32,8 @@ export interface ProposedActivity {
   attractionName: string | null
   restaurantId: string | null
   restaurantName: string | null
+  /** For `rest` — index into trip accommodation list */
+  restAccommodationIndex?: number | null
 }
 
 export interface ActionProposal {

@@ -1,42 +1,21 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+
 import { prisma } from "@/lib/prisma"
 import { syncLogisticsActivities } from "@/lib/sync-logistics"
 import { normalizeAccommodations, getAccommodationsForDay } from "@/lib/accommodations"
 import { computeDrivingTimesForDay, DrivingTimeFromLodging } from "@/lib/driving-times"
-
-async function verifyTripAccess(tripId: string, userId: string) {
-  const trip = await prisma.trip.findUnique({
-    where: { id: tripId },
-    include: { shares: true },
-  })
-
-  if (!trip) return null
-
-  const isOwner = trip.userId === userId
-  const isShared = trip.shares.some((s) => s.userId === userId)
-
-  if (!isOwner && !isShared) return null
-
-  return trip
-}
+import { requireTripAccess } from "@/lib/trip-access"
+import { getPlaceDetails } from "@/lib/google-maps"
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ tripId: string }> }
 ) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
   const { tripId } = await params
 
-  const trip = await verifyTripAccess(tripId, session.user.id)
-  if (!trip) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 })
-  }
+  const result = await requireTripAccess(tripId)
+  if (result instanceof NextResponse) return result
+  const { trip } = result
 
   let dayPlans = await prisma.dayPlan.findMany({
     where: { tripId },
@@ -45,6 +24,7 @@ export async function GET(
         include: {
           attraction: true,
           restaurant: true,
+          groceryStore: true,
         },
         orderBy: { sortOrder: "asc" },
       },
@@ -91,12 +71,95 @@ export async function GET(
         where: { tripId },
         include: {
           activities: {
-            include: { attraction: true, restaurant: true },
+            include: { attraction: true, restaurant: true, groceryStore: true },
             orderBy: { sortOrder: "asc" },
           },
         },
         orderBy: { date: "asc" },
       })
+    }
+  }
+
+  // Backfill opening hours for places that have a googlePlaceId but no openingHours
+  const placesToBackfill: { id: string; googlePlaceId: string; model: "attraction" | "restaurant" | "groceryStore" }[] = []
+
+  for (const dp of dayPlans) {
+    for (const activity of dp.activities) {
+      for (const model of ["attraction", "restaurant", "groceryStore"] as const) {
+        const place = activity[model]
+        if (place && place.googlePlaceId && !place.openingHours) {
+          // Avoid duplicates if the same place appears in multiple activities
+          if (!placesToBackfill.some((p) => p.id === place.id && p.model === model)) {
+            placesToBackfill.push({ id: place.id, googlePlaceId: place.googlePlaceId, model })
+          }
+        }
+      }
+    }
+  }
+
+  if (placesToBackfill.length > 0) {
+    const backfillResults = await Promise.allSettled(
+      placesToBackfill.map(async ({ id, googlePlaceId, model }) => {
+        const details = await getPlaceDetails(
+          googlePlaceId,
+          "regularOpeningHours"
+        )
+        const hours = details.regularOpeningHours?.weekdayDescriptions as string[] | undefined ?? null
+        if (!hours) return
+
+        const prismaModel = model === "groceryStore" ? prisma.groceryStore : prisma[model]
+        await (prismaModel as typeof prisma.attraction).update({
+          where: { id },
+          data: { openingHours: hours },
+        })
+      })
+    )
+
+    // If any were backfilled, re-fetch day plans so the response includes the new data
+    const didBackfillHours = backfillResults.some((r) => r.status === "fulfilled")
+    if (didBackfillHours) {
+      dayPlans = await prisma.dayPlan.findMany({
+        where: { tripId },
+        include: {
+          activities: {
+            include: { attraction: true, restaurant: true, groceryStore: true },
+            orderBy: { sortOrder: "asc" },
+          },
+        },
+        orderBy: { date: "asc" },
+      })
+    }
+  }
+
+  // Deduplicate activities within each day (can happen from concurrent backfill requests)
+  const duplicateIds: string[] = []
+  for (const dayPlan of dayPlans) {
+    const seen = new Set<string>()
+    for (const activity of dayPlan.activities) {
+      const key = [
+        activity.type,
+        activity.timeStart ?? "",
+        activity.timeEnd ?? "",
+        activity.attractionId ?? "",
+        activity.restaurantId ?? "",
+        activity.groceryStoreId ?? "",
+        activity.notes ?? "",
+        activity.sortOrder,
+      ].join("|")
+      if (seen.has(key)) {
+        duplicateIds.push(activity.id)
+      } else {
+        seen.add(key)
+      }
+    }
+  }
+
+  if (duplicateIds.length > 0) {
+    await prisma.activity.deleteMany({ where: { id: { in: duplicateIds } } })
+    // Remove from in-memory data
+    for (const dayPlan of dayPlans) {
+      (dayPlan as { activities: typeof dayPlan.activities }).activities =
+        dayPlan.activities.filter((a) => !duplicateIds.includes(a.id))
     }
   }
 
@@ -111,7 +174,7 @@ export async function GET(
       const enrichedActivities = await Promise.all(
         dayPlan.activities.map(async (activity) => {
           const drivingTimesFromLodging: DrivingTimeFromLodging[] =
-            activity.attraction || activity.restaurant
+            activity.attraction || activity.restaurant || activity.groceryStore
               ? await computeDrivingTimesForDay(dayAccommodations, activity)
               : []
           return { ...activity, drivingTimesFromLodging }
@@ -129,17 +192,11 @@ export async function POST(
   _request: Request,
   { params }: { params: Promise<{ tripId: string }> }
 ) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
   const { tripId } = await params
 
-  const trip = await verifyTripAccess(tripId, session.user.id)
-  if (!trip) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 })
-  }
+  const result = await requireTripAccess(tripId)
+  if (result instanceof NextResponse) return result
+  const { session, trip } = result
 
   // Check if day plans already exist
   const existing = await prisma.dayPlan.findMany({
@@ -149,6 +206,7 @@ export async function POST(
         include: {
           attraction: true,
           restaurant: true,
+          groceryStore: true,
         },
         orderBy: { sortOrder: "asc" },
       },
@@ -237,6 +295,7 @@ export async function POST(
         include: {
           attraction: true,
           restaurant: true,
+          groceryStore: true,
         },
         orderBy: { sortOrder: "asc" },
       },

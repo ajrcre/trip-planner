@@ -39,10 +39,10 @@ export interface Trip {
 const tabs = [
   { key: "overview", label: "סקירה כללית" },
   { key: "destination", label: "יעד" },
+  { key: "schedule", label: 'לו"ז' },
   { key: "attractions", label: "אטרקציות" },
   { key: "restaurants", label: "מסעדות" },
-  { key: "groceryStores", label: "מכולת" },
-  { key: "schedule", label: 'לו"ז' },
+  { key: "groceryStores", label: "סופר" },
   { key: "lists", label: "רשימות" },
 ] as const
 

@@ -238,5 +238,53 @@ export async function syncLogisticsActivities(
     await prisma.activity.createMany({
       data: activitiesToCreate,
     })
+
+    // 6. Re-sort all activities on affected day plans by timeStart
+    const affectedDayPlanIds = [
+      ...new Set(activitiesToCreate.map((a) => a.dayPlanId)),
+    ]
+    await resortActivitiesByTime(affectedDayPlanIds)
+  }
+}
+
+/**
+ * Re-sort all activities on the given day plans by timeStart,
+ * so they appear in chronological order regardless of insertion order.
+ */
+export async function resortActivitiesByTime(
+  dayPlanIds: string[]
+): Promise<void> {
+  for (const dayPlanId of dayPlanIds) {
+    const activities = await prisma.activity.findMany({
+      where: { dayPlanId },
+      orderBy: { sortOrder: "asc" },
+    })
+
+    const sorted = [...activities].sort((a, b) => {
+      if (!a.timeStart && !b.timeStart) return a.sortOrder - b.sortOrder
+      if (!a.timeStart) return 1
+      if (!b.timeStart) return -1
+      return a.timeStart.localeCompare(b.timeStart)
+    })
+
+    // Update sortOrder for any activity whose position changed
+    const updates = sorted
+      .map((activity, index) => ({ id: activity.id, sortOrder: index }))
+      .filter(
+        (item) =>
+          item.sortOrder !==
+          activities.find((a) => a.id === item.id)!.sortOrder
+      )
+
+    if (updates.length > 0) {
+      await prisma.$transaction(
+        updates.map((u) =>
+          prisma.activity.update({
+            where: { id: u.id },
+            data: { sortOrder: u.sortOrder },
+          })
+        )
+      )
+    }
   }
 }

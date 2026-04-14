@@ -9,6 +9,12 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // Neon pooled URLs can hit P1002 (advisory lock timeout) on `migrate`.
+    // Prefer a direct (non-pooler) URL for CLI migrations only — see `.env.example`.
+    url:
+      process.env["MIGRATE_DATABASE_URL"] ??
+      process.env["DATABASE_URL_UNPOOLED"] ??
+      process.env["DIRECT_URL"] ??
+      process.env["DATABASE_URL"],
   },
 });

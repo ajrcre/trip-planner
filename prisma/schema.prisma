@@ -291,6 +291,12 @@ model Activity {
   groceryStoreId String?
   groceryStore   GroceryStore? @relation(fields: [groceryStoreId], references: [id])
 
+  /** Driving legs: origin/destination refs + server-resolved coords, labels, driveMinutes */
+  travelLeg Json?
+
+  /** Index into trip `accommodation` JSON array for `rest` activities */
+  restAccommodationIndex Int?
+
   travelTimeToNextMinutes Int?
 
   createdAt DateTime @default(now())
@@ -318,9 +324,12 @@ model ShoppingItem {
   tripId String
   trip   Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
-  category String
-  item     String
-  checked  Boolean @default(false)
+  category        String
+  item            String
+  checked         Boolean @default(false)
+  localName       String?
+  transliteration String?
+  localLanguage   String?
 
   sortOrder Int @default(0)
 }

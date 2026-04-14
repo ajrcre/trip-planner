@@ -41,6 +41,7 @@ interface AccommodationForDriving {
 interface ActivityForDriving {
   attraction: { lat: number | null; lng: number | null } | null
   restaurant: { lat: number | null; lng: number | null } | null
+  groceryStore: { lat: number | null; lng: number | null } | null
 }
 
 export interface DrivingTimeFromLodging {
@@ -58,8 +59,8 @@ export async function computeDrivingTimesForDay(
   activity: ActivityForDriving
 ): Promise<DrivingTimeFromLodging[]> {
   // Determine activity destination coordinates
-  const destLat = activity.attraction?.lat ?? activity.restaurant?.lat ?? null
-  const destLng = activity.attraction?.lng ?? activity.restaurant?.lng ?? null
+  const destLat = activity.attraction?.lat ?? activity.restaurant?.lat ?? activity.groceryStore?.lat ?? null
+  const destLng = activity.attraction?.lng ?? activity.restaurant?.lng ?? activity.groceryStore?.lng ?? null
 
   if (destLat == null || destLng == null) return []
 

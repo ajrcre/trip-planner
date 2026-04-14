@@ -2,27 +2,24 @@
 
 import { useState, useCallback, useEffect, useMemo } from "react"
 import { DayTimeline, type DayPlanData } from "./DayTimeline"
+import { CopyToWhatsAppButton } from "./CopyToWhatsAppButton"
 import { ItineraryMap } from "./ItineraryMap"
-import ChatDrawer from "../ai/ChatDrawer"
+
 import { WeatherForecast } from "./WeatherForecast"
 import type { DailyWeather, HourlyWeather } from "@/lib/weather"
 import { normalizeAccommodations, getAccommodationsForDay } from "@/lib/accommodations"
+import { normalizeCarRentals, normalizeFlights } from "@/lib/normalizers"
 
 interface Trip {
   id: string
   startDate: string
   endDate: string
   accommodation: unknown
-  flights: {
-    outbound?: {
-      arrivalTime?: string
-    }
-    return?: {
-      departureTime?: string
-    }
-  } | null
+  flights: unknown
+  carRental: unknown
   attractions: { id: string; name: string; status: string }[]
   restaurants: { id: string; name: string; status: string }[]
+  groceryStores: { id: string; name: string; status: string }[]
 }
 
 interface ScheduleViewProps {
@@ -81,7 +78,7 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
   const [weatherData, setWeatherData] = useState<WeatherResponse | null>(null)
   const [isWeatherLoading, setIsWeatherLoading] = useState(true)
   const [activeActivityId, setActiveActivityId] = useState<string | null>(null)
-  const [isChatOpen, setIsChatOpen] = useState(false)
+
 
   const handleMarkerClick = useCallback((activityId: string) => {
     setActiveActivityId(activityId)
@@ -133,25 +130,54 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
 
   const accommodations = useMemo(() => normalizeAccommodations(trip.accommodation), [trip.accommodation])
 
+  const flightLegs = useMemo(() => normalizeFlights(trip.flights), [trip.flights])
+  const carRentals = useMemo(() => normalizeCarRentals(trip.carRental), [trip.carRental])
+  const accommodationOptions = useMemo(
+    () =>
+      accommodations.map((a, index) => ({
+        index,
+        name: a.name ?? "לינה",
+      })),
+    [accommodations]
+  )
+
+  const accommodationsFullForMap = useMemo(
+    () =>
+      accommodations.map((a) => ({
+        name: a.name ?? "לינה",
+        lat: a.coordinates?.lat,
+        lng: a.coordinates?.lng,
+      })),
+    [accommodations]
+  )
+
   const fetchSchedule = useCallback(async () => {
     try {
       const res = await fetch(`/api/trips/${trip.id}/schedule`)
       if (res.ok) {
         const data = await res.json()
         setDayPlans(data)
-        if (data.length > 0 && !activeDay) {
-          setActiveDay(data[0].id)
-        }
+        setActiveDay((prev) => {
+          if (prev) return prev
+          return data.length > 0 ? data[0].id : null
+        })
       }
     } catch (error) {
       console.error("Failed to fetch schedule:", error)
     } finally {
       setIsLoading(false)
     }
-  }, [trip.id, activeDay])
+  }, [trip.id])
 
   useEffect(() => {
     fetchSchedule()
+  }, [fetchSchedule])
+
+  // Listen for schedule updates from the global AI chat
+  useEffect(() => {
+    const handler = () => fetchSchedule()
+    window.addEventListener("schedule-updated", handler)
+    return () => window.removeEventListener("schedule-updated", handler)
   }, [fetchSchedule])
 
   async function handleGenerate() {
@@ -264,8 +290,22 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
         })}
       </div>
 
-      {/* Split panel: timeline (right) + map (left) */}
+      {/* Split panel: map (left) + timeline (right) */}
       <div className="flex flex-col lg:flex-row-reverse gap-4">
+        {/* Map panel (left side on desktop) */}
+        <div className="order-last lg:order-first lg:max-w-[45%] lg:min-w-[45%] lg:sticky lg:top-4 lg:self-start">
+          {activePlan && (
+            <ItineraryMap
+              activities={activePlan.activities}
+              allDayPlans={allDayPlansForMap}
+              activeActivityId={activeActivityId}
+              onMarkerClick={handleMarkerClick}
+              accommodations={mapAccommodations}
+              accommodationsFull={accommodationsFullForMap}
+            />
+          )}
+        </div>
+
         {/* Timeline panel (right side on desktop) */}
         <div className="flex-1 lg:max-w-[55%] flex flex-col gap-4">
           {/* Weather forecast for active day */}
@@ -278,6 +318,13 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
             />
           )}
 
+          {/* WhatsApp copy button */}
+          {activePlan && activePlan.activities.length > 0 && (
+            <div className="flex justify-end">
+              <CopyToWhatsAppButton dayPlan={activePlan} tripAccommodations={accommodations} />
+            </div>
+          )}
+
           {/* Active day timeline */}
           {activePlan && (
             <DayTimeline
@@ -285,44 +332,22 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
               dayPlan={activePlan}
               attractions={trip.attractions}
               restaurants={trip.restaurants}
+              groceryStores={trip.groceryStores}
               accommodations={activeDayAccommodations}
+              tripAccommodations={accommodations}
+              accommodationOptions={accommodationOptions}
+              flightLegs={flightLegs}
+              carRentals={carRentals}
               onUpdate={fetchSchedule}
               activeActivityId={activeActivityId}
               onActivityHover={setActiveActivityId}
             />
           )}
 
-          {/* AI Assistant trigger button */}
-          <button
-            onClick={() => setIsChatOpen(true)}
-            className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-          >
-            <span className="text-lg" aria-hidden="true">💡</span>
-            עוזר AI לתכנון
-          </button>
         </div>
 
-        {/* Map panel (left side on desktop) */}
-        <div className="lg:max-w-[45%] lg:min-w-[45%] lg:sticky lg:top-4 lg:self-start">
-          {activePlan && (
-            <ItineraryMap
-              activities={activePlan.activities}
-              allDayPlans={allDayPlansForMap}
-              activeActivityId={activeActivityId}
-              onMarkerClick={handleMarkerClick}
-              accommodations={mapAccommodations}
-            />
-          )}
-        </div>
       </div>
 
-      {/* Chat Drawer */}
-      <ChatDrawer
-        tripId={trip.id}
-        isOpen={isChatOpen}
-        onClose={() => setIsChatOpen(false)}
-        onScheduleUpdate={fetchSchedule}
-      />
     </div>
   )
 }

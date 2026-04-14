@@ -19,6 +19,11 @@ export interface PlaceResult {
   location: LatLng
   types?: string[]
   editorialSummary?: { text: string }
+  websiteUri?: string
+  regularOpeningHours?: {
+    weekdayDescriptions?: string[]
+    openNow?: boolean
+  }
 }
 
 export interface PlaceDetails {
@@ -45,6 +50,23 @@ export interface RouteResult {
   distanceKm: number
 }
 
+export async function geocodeAddress(
+  address: string
+): Promise<{ lat: number; lng: number } | null> {
+  const response = await fetch(
+    `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${getApiKey()}`
+  )
+
+  if (!response.ok) return null
+
+  const data = await response.json()
+  const location = data.results?.[0]?.geometry?.location
+
+  if (!location) return null
+
+  return { lat: location.lat, lng: location.lng }
+}
+
 export async function searchPlaces(
   query: string,
   location: { lat: number; lng: number },
@@ -52,7 +74,7 @@ export async function searchPlaces(
   type?: string
 ): Promise<PlaceResult[]> {
   const fieldMask =
-    "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.photos,places.location,places.types,places.editorialSummary"
+    "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.photos,places.location,places.types,places.editorialSummary,places.websiteUri,places.regularOpeningHours"
 
   const body: Record<string, unknown> = {
     textQuery: type ? `${type} ${query}` : query,

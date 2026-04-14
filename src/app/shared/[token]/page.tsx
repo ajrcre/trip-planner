@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import { TripMap } from "@/components/maps/TripMap"
 import { normalizeFlights, normalizeCarRentals } from "@/lib/normalizers"
+import { formatUiDateTime } from "@/lib/format-time"
 
 interface SharedTrip {
   id: string
@@ -86,16 +87,6 @@ interface SharedTrip {
 
 function formatDate(date: string) {
   return new Date(date).toLocaleDateString("he-IL")
-}
-
-function formatDateTime(date: string) {
-  return new Date(date).toLocaleDateString("he-IL", {
-    day: "numeric",
-    month: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
 }
 
 function googleMapsLink(address: string): string {
@@ -199,13 +190,13 @@ export default function SharedTripPage() {
             {flight.departureAirport && (
               <InfoRow
                 label="יציאה"
-                value={`${flight.departureAirport}${flight.departureTime ? ` - ${formatDateTime(flight.departureTime)}` : ""}`}
+                value={`${flight.departureAirport}${flight.departureTime ? ` - ${formatUiDateTime(flight.departureTime)}` : ""}`}
               />
             )}
             {flight.arrivalAirport && (
               <InfoRow
                 label="נחיתה"
-                value={`${flight.arrivalAirport}${flight.arrivalTime ? ` - ${formatDateTime(flight.arrivalTime)}` : ""}`}
+                value={`${flight.arrivalAirport}${flight.arrivalTime ? ` - ${formatUiDateTime(flight.arrivalTime)}` : ""}`}
               />
             )}
           </div>
@@ -221,8 +212,8 @@ export default function SharedTripPage() {
               <h2 className="mb-4 text-xl font-semibold">לינה</h2>
               <InfoRow label="שם" value={trip.accommodation.name} />
               <InfoRow label="כתובת" value={trip.accommodation.address} />
-              <InfoRow label="צ'ק-אין" value={trip.accommodation.checkIn ? formatDateTime(trip.accommodation.checkIn) : undefined} />
-              <InfoRow label="צ'ק-אאוט" value={trip.accommodation.checkOut ? formatDateTime(trip.accommodation.checkOut) : undefined} />
+              <InfoRow label="צ'ק-אין" value={trip.accommodation.checkIn ? formatUiDateTime(trip.accommodation.checkIn) : undefined} />
+              <InfoRow label="צ'ק-אאוט" value={trip.accommodation.checkOut ? formatUiDateTime(trip.accommodation.checkOut) : undefined} />
               <InfoRow label="פרטי קשר" value={trip.accommodation.contact} />
               {trip.accommodation.address && (
                 <a
@@ -247,9 +238,9 @@ export default function SharedTripPage() {
         <div key={idx} className={idx > 0 ? "mt-3 border-t border-zinc-100 pt-3" : ""}>
           {car.company && <InfoRow label="חברה" value={car.company} />}
           {car.pickupLocation && <InfoRow label="מיקום איסוף" value={car.pickupLocation} />}
-          {car.pickupTime && <InfoRow label="זמן איסוף" value={formatDateTime(car.pickupTime)} />}
+          {car.pickupTime && <InfoRow label="זמן איסוף" value={formatUiDateTime(car.pickupTime)} />}
           {car.returnLocation && <InfoRow label="מיקום החזרה" value={car.returnLocation} />}
-          {car.returnTime && <InfoRow label="זמן החזרה" value={formatDateTime(car.returnTime)} />}
+          {car.returnTime && <InfoRow label="זמן החזרה" value={formatUiDateTime(car.returnTime)} />}
           {car.additionalDetails && <InfoRow label="פרטים נוספים" value={car.additionalDetails} />}
         </div>
       ))}

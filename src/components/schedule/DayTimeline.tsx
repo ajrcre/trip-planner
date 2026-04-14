@@ -1,6 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
+import type { Accommodation } from "@/lib/accommodations"
+import type { CarRental, FlightLeg } from "@/lib/normalizers"
+import { decodeTravelEndpoint, encodeTravelEndpoint } from "@/lib/travel-endpoint-codec"
+import type { TravelEndpointRef } from "@/types/travel-leg"
 import { ActivityCard, type ActivityData } from "./ActivityCard"
 
 interface AttractionOption {
@@ -15,6 +19,12 @@ interface RestaurantOption {
   status: string
 }
 
+interface GroceryStoreOption {
+  id: string
+  name: string
+  status: string
+}
+
 export interface DayPlanData {
   id: string
   date: string
@@ -22,13 +32,25 @@ export interface DayPlanData {
   activities: ActivityData[]
 }
 
+interface AccommodationOption {
+  index: number
+  name: string
+}
+
 interface DayTimelineProps {
   tripId: string
   dayPlan: DayPlanData
   attractions: AttractionOption[]
   restaurants: RestaurantOption[]
+  groceryStores: GroceryStoreOption[]
   accommodations: { name: string; address?: string; lat?: number; lng?: number }[]
-  onUpdate: () => void
+  /** Full normalized trip accommodations (indices match `accommodationOptions` and rest) */
+  tripAccommodations: Accommodation[]
+  /** Full trip accommodation list (indices match server `lodging` travel endpoints) */
+  accommodationOptions: AccommodationOption[]
+  flightLegs: FlightLeg[]
+  carRentals: CarRental[]
+  onUpdate: () => void | Promise<void>
   activeActivityId?: string | null
   onActivityHover?: (activityId: string | null) => void
 }
@@ -38,6 +60,7 @@ const activityTypes = [
   { value: "meal", label: "\u05D0\u05E8\u05D5\u05D7\u05D4" },
   { value: "travel", label: "\u05E0\u05E1\u05D9\u05E2\u05D4" },
   { value: "rest", label: "\u05DE\u05E0\u05D5\u05D7\u05D4" },
+  { value: "grocery", label: "קניות מכולת" },
   { value: "custom", label: "\u05D0\u05D7\u05E8" },
   { value: "lodging", label: "לינה" },
 ]
@@ -47,7 +70,12 @@ export function DayTimeline({
   dayPlan,
   attractions,
   restaurants,
+  groceryStores,
   accommodations,
+  tripAccommodations,
+  accommodationOptions,
+  flightLegs,
+  carRentals,
   onUpdate,
   activeActivityId,
   onActivityHover,
@@ -56,11 +84,16 @@ export function DayTimeline({
   const [addType, setAddType] = useState("attraction")
   const [addAttractionId, setAddAttractionId] = useState("")
   const [addRestaurantId, setAddRestaurantId] = useState("")
+  const [addGroceryStoreId, setAddGroceryStoreId] = useState("")
   const [addAccommodationIdx, setAddAccommodationIdx] = useState("")
+  const [addRestAccommodationIdx, setAddRestAccommodationIdx] = useState("")
   const [addTimeStart, setAddTimeStart] = useState("")
   const [addTimeEnd, setAddTimeEnd] = useState("")
   const [addNotes, setAddNotes] = useState("")
+  const [addTravelOrigin, setAddTravelOrigin] = useState("")
+  const [addTravelDest, setAddTravelDest] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const filteredAttractions = attractions.filter(
     (a) => a.status === "want" || a.status === "maybe"
@@ -68,6 +101,116 @@ export function DayTimeline({
   const filteredRestaurants = restaurants.filter(
     (r) => r.status === "want" || r.status === "maybe"
   )
+  const filteredGroceryStores = groceryStores.filter(
+    (g) => g.status === "want" || g.status === "maybe"
+  )
+
+  const travelEndpointRows = useMemo(() => {
+    const rows: { value: string; label: string }[] = []
+    for (const a of filteredAttractions) {
+      rows.push({
+        value: encodeTravelEndpoint({ kind: "attraction", id: a.id }),
+        label: `אטרקציה: ${a.name}`,
+      })
+    }
+    for (const r of filteredRestaurants) {
+      rows.push({
+        value: encodeTravelEndpoint({ kind: "restaurant", id: r.id }),
+        label: `מסעדה: ${r.name}`,
+      })
+    }
+    for (const g of filteredGroceryStores) {
+      rows.push({
+        value: encodeTravelEndpoint({ kind: "groceryStore", id: g.id }),
+        label: `מכולת: ${g.name}`,
+      })
+    }
+    for (const opt of accommodationOptions) {
+      rows.push({
+        value: encodeTravelEndpoint({
+          kind: "lodging",
+          accommodationIndex: opt.index,
+        }),
+        label: `לינה: ${opt.name}`,
+      })
+    }
+    const outbound = flightLegs[0]
+    if (outbound) {
+      if (outbound.departureAirport) {
+        rows.push({
+          value: encodeTravelEndpoint({
+            kind: "flight",
+            leg: "outbound",
+            point: "departure",
+          }),
+          label: `טיסה הלוך — המראה (${outbound.departureAirport})`,
+        })
+      }
+      if (outbound.arrivalAirport) {
+        rows.push({
+          value: encodeTravelEndpoint({
+            kind: "flight",
+            leg: "outbound",
+            point: "arrival",
+          }),
+          label: `טיסה הלוך — נחיתה (${outbound.arrivalAirport})`,
+        })
+      }
+    }
+    const ret = flightLegs[1]
+    if (ret) {
+      if (ret.departureAirport) {
+        rows.push({
+          value: encodeTravelEndpoint({
+            kind: "flight",
+            leg: "return",
+            point: "departure",
+          }),
+          label: `טיסה חזור — המראה (${ret.departureAirport})`,
+        })
+      }
+      if (ret.arrivalAirport) {
+        rows.push({
+          value: encodeTravelEndpoint({
+            kind: "flight",
+            leg: "return",
+            point: "arrival",
+          }),
+          label: `טיסה חזור — נחיתה (${ret.arrivalAirport})`,
+        })
+      }
+    }
+    carRentals.forEach((cr, rentalIndex) => {
+      if (cr.pickupLocation) {
+        rows.push({
+          value: encodeTravelEndpoint({
+            kind: "carRental",
+            rentalIndex,
+            point: "pickup",
+          }),
+          label: `רכב — איסוף${cr.company ? ` (${cr.company})` : ""}`,
+        })
+      }
+      if (cr.returnLocation) {
+        rows.push({
+          value: encodeTravelEndpoint({
+            kind: "carRental",
+            rentalIndex,
+            point: "return",
+          }),
+          label: `רכב — החזרה${cr.company ? ` (${cr.company})` : ""}`,
+        })
+      }
+    })
+    return rows
+  }, [
+    filteredAttractions,
+    filteredRestaurants,
+    filteredGroceryStores,
+    accommodationOptions,
+    flightLegs,
+    carRentals,
+  ])
 
   function sortAndReindex(
     activities: Array<{
@@ -78,7 +221,10 @@ export function DayTimeline({
       notes?: string | null
       attractionId?: string | null
       restaurantId?: string | null
+      groceryStoreId?: string | null
+      restAccommodationIndex?: number | null
       travelTimeToNextMinutes?: number | null
+      travelLeg?: { origin: TravelEndpointRef; destination: TravelEndpointRef } | null
     }>
   ) {
     return [...activities]
@@ -94,6 +240,37 @@ export function DayTimeline({
   async function handleAddActivity() {
     setIsSubmitting(true)
     try {
+      let travelLeg: { origin: TravelEndpointRef; destination: TravelEndpointRef } | null =
+        null
+      if (addType === "travel") {
+        const o = decodeTravelEndpoint(addTravelOrigin)
+        const d = decodeTravelEndpoint(addTravelDest)
+        if (!o || !d) {
+          window.alert("בחרו נקודת מוצא ויעד לנסיעה")
+          setIsSubmitting(false)
+          return
+        }
+        if (encodeTravelEndpoint(o) === encodeTravelEndpoint(d)) {
+          window.alert("מקור ויעד חייבים להיות שונים")
+          setIsSubmitting(false)
+          return
+        }
+        travelLeg = { origin: o, destination: d }
+      }
+
+      if (addType === "rest") {
+        if (accommodationOptions.length === 0) {
+          window.alert("הוסיפו לינה בסקירת הטיול לפני רישום מנוחה")
+          setIsSubmitting(false)
+          return
+        }
+        if (addRestAccommodationIdx === "") {
+          window.alert("בחרו לינה למנוחה")
+          setIsSubmitting(false)
+          return
+        }
+      }
+
       // For lodging, use accommodation name as notes
       const effectiveNotes =
         addType === "lodging" && addAccommodationIdx !== ""
@@ -108,7 +285,10 @@ export function DayTimeline({
         notes?: string | null
         attractionId?: string | null
         restaurantId?: string | null
+        groceryStoreId?: string | null
+        restAccommodationIndex?: number | null
         travelTimeToNextMinutes?: number | null
+        travelLeg?: { origin: TravelEndpointRef; destination: TravelEndpointRef } | null
       } = {
         sortOrder: 999,
         type: addType,
@@ -117,7 +297,13 @@ export function DayTimeline({
         notes: effectiveNotes || null,
         attractionId: addType === "attraction" && addAttractionId ? addAttractionId : null,
         restaurantId: addType === "meal" && addRestaurantId ? addRestaurantId : null,
+        groceryStoreId: addType === "grocery" && addGroceryStoreId ? addGroceryStoreId : null,
+        restAccommodationIndex:
+          addType === "rest" && addRestAccommodationIdx !== ""
+            ? parseInt(addRestAccommodationIdx, 10)
+            : null,
         travelTimeToNextMinutes: null,
+        travelLeg,
       }
 
       const existingActivities = dayPlan.activities.map((a) => ({
@@ -128,7 +314,13 @@ export function DayTimeline({
         notes: a.notes,
         attractionId: a.attractionId,
         restaurantId: a.restaurantId,
+        groceryStoreId: a.groceryStoreId,
+        restAccommodationIndex: a.restAccommodationIndex ?? null,
         travelTimeToNextMinutes: a.travelTimeToNextMinutes,
+        travelLeg:
+          a.type === "travel" && a.travelLeg
+            ? { origin: a.travelLeg.origin, destination: a.travelLeg.destination }
+            : null,
       }))
 
       const allActivities = sortAndReindex([...existingActivities, newActivity])
@@ -155,7 +347,13 @@ export function DayTimeline({
 
   async function handleEditActivity(
     activity: ActivityData,
-    updates: { timeStart?: string; timeEnd?: string; notes?: string }
+    updates: {
+      timeStart?: string
+      timeEnd?: string
+      notes?: string
+      travelLeg?: { origin: TravelEndpointRef; destination: TravelEndpointRef } | null
+      restAccommodationIndex?: number | null
+    }
   ) {
     // Rebuild all activities with the update applied, then re-sort by time
     const updatedActivities = sortAndReindex(
@@ -168,7 +366,13 @@ export function DayTimeline({
           notes: a.notes,
           attractionId: a.attractionId,
           restaurantId: a.restaurantId,
+          groceryStoreId: a.groceryStoreId,
+          restAccommodationIndex: a.restAccommodationIndex ?? null,
           travelTimeToNextMinutes: a.travelTimeToNextMinutes,
+          travelLeg:
+            a.type === "travel" && a.travelLeg
+              ? { origin: a.travelLeg.origin, destination: a.travelLeg.destination }
+              : null,
         }
         if (a.id === activity.id) {
           return {
@@ -176,6 +380,14 @@ export function DayTimeline({
             timeStart: updates.timeStart ?? a.timeStart,
             timeEnd: updates.timeEnd ?? a.timeEnd,
             notes: updates.notes ?? a.notes,
+            travelLeg:
+              updates.travelLeg !== undefined
+                ? updates.travelLeg
+                : base.travelLeg,
+            restAccommodationIndex:
+              updates.restAccommodationIndex !== undefined
+                ? updates.restAccommodationIndex
+                : base.restAccommodationIndex,
           }
         }
         return base
@@ -193,7 +405,7 @@ export function DayTimeline({
       )
 
       if (res.ok) {
-        onUpdate()
+        await onUpdate()
       }
     } catch (error) {
       console.error("Failed to update activity:", error)
@@ -201,6 +413,7 @@ export function DayTimeline({
   }
 
   async function handleDeleteActivity(activityId: string) {
+    setDeletingId(activityId)
     try {
       const res = await fetch(
         `/api/trips/${tripId}/schedule/${dayPlan.id}?activityId=${activityId}`,
@@ -212,6 +425,8 @@ export function DayTimeline({
       }
     } catch (error) {
       console.error("Failed to delete activity:", error)
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -220,7 +435,11 @@ export function DayTimeline({
     setAddType("attraction")
     setAddAttractionId("")
     setAddRestaurantId("")
+    setAddGroceryStoreId("")
     setAddAccommodationIdx("")
+    setAddRestAccommodationIdx("")
+    setAddTravelOrigin("")
+    setAddTravelDest("")
     setAddTimeStart("")
     setAddTimeEnd("")
     setAddNotes("")
@@ -242,7 +461,7 @@ export function DayTimeline({
               id={`activity-${activity.id}`}
               className={`flex flex-col gap-2 transition-all ${
                 activeActivityId === activity.id ? "ring-2 ring-blue-400 rounded-lg" : ""
-              }`}
+              } ${deletingId === activity.id ? "pointer-events-none opacity-40" : ""}`}
               onMouseEnter={() => onActivityHover?.(activity.id)}
               onMouseLeave={() => onActivityHover?.(null)}
             >
@@ -250,6 +469,11 @@ export function DayTimeline({
                 activity={activity}
                 onEdit={handleEditActivity}
                 onDelete={handleDeleteActivity}
+                isDeleting={deletingId === activity.id}
+                travelEndpointOptions={travelEndpointRows}
+                tripAccommodations={tripAccommodations}
+                restAccommodationChoices={accommodationOptions}
+                scheduleDate={dayPlan.date}
               />
               {/* Travel time indicator between activities */}
               {activity.travelTimeToNextMinutes != null &&
@@ -341,6 +565,66 @@ export function DayTimeline({
               </div>
             )}
 
+            {/* Grocery store dropdown */}
+            {addType === "grocery" && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-zinc-500">{"חנות מכולת"}</label>
+                <select
+                  value={addGroceryStoreId}
+                  onChange={(e) => setAddGroceryStoreId(e.target.value)}
+                  className="rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-700"
+                >
+                  <option value="">{"בחרו חנות..."}</option>
+                  {filteredGroceryStores.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Driving: origin / destination */}
+            {addType === "travel" && (
+              <>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-zinc-500">נקודת מוצא</label>
+                  <select
+                    value={addTravelOrigin}
+                    onChange={(e) => setAddTravelOrigin(e.target.value)}
+                    className="rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-700"
+                  >
+                    <option value="">בחרו...</option>
+                    {travelEndpointRows.map((row) => (
+                      <option key={`o-${row.value}`} value={row.value}>
+                        {row.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-zinc-500">יעד</label>
+                  <select
+                    value={addTravelDest}
+                    onChange={(e) => setAddTravelDest(e.target.value)}
+                    className="rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-700"
+                  >
+                    <option value="">בחרו...</option>
+                    {travelEndpointRows.map((row) => (
+                      <option key={`d-${row.value}`} value={row.value}>
+                        {row.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {travelEndpointRows.length === 0 && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    אין עדיין מקומות שמורים (אטרקציות/מסעדות/מכולת/לינה/טיסות/רכב) — הוסיפו אותם בטאבים הרלוונטיים או בסקירה.
+                  </p>
+                )}
+              </>
+            )}
+
             {/* Accommodation dropdown */}
             {addType === "lodging" && accommodations.length > 0 && (
               <div className="flex flex-col gap-1">
@@ -363,6 +647,29 @@ export function DayTimeline({
                     </option>
                   ))}
                 </select>
+              </div>
+            )}
+
+            {addType === "rest" && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-zinc-500">לינה</label>
+                <select
+                  value={addRestAccommodationIdx}
+                  onChange={(e) => setAddRestAccommodationIdx(e.target.value)}
+                  className="rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-700"
+                >
+                  <option value="">בחרו לינה...</option>
+                  {accommodationOptions.map((opt) => (
+                    <option key={opt.index} value={String(opt.index)}>
+                      {opt.name}
+                    </option>
+                  ))}
+                </select>
+                {accommodationOptions.length === 0 && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    הוסיפו לינה בסקירת הטיול כדי לשייך מנוחה למקום.
+                  </p>
+                )}
               </div>
             )}
 
@@ -405,15 +712,21 @@ export function DayTimeline({
               <button
                 onClick={handleAddActivity}
                 disabled={isSubmitting}
-                className="rounded bg-blue-600 px-4 py-1.5 text-xs text-white hover:bg-blue-700 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded bg-blue-600 px-4 py-1.5 text-xs text-white hover:bg-blue-700 disabled:opacity-60"
               >
-                {isSubmitting ? "\u05E9\u05D5\u05DE\u05E8..." : "\u05D4\u05D5\u05E1\u05E3"}
+                {isSubmitting && (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin">
+                    <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
+                  </svg>
+                )}
+                {isSubmitting ? "שומר..." : "הוסף"}
               </button>
               <button
                 onClick={resetAddForm}
-                className="rounded border border-zinc-300 px-4 py-1.5 text-xs hover:bg-zinc-100 dark:border-zinc-600 dark:hover:bg-zinc-700"
+                disabled={isSubmitting}
+                className="rounded border border-zinc-300 px-4 py-1.5 text-xs hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-600 dark:hover:bg-zinc-700"
               >
-                {"\u05D1\u05D9\u05D8\u05D5\u05DC"}
+                ביטול
               </button>
             </div>
           </div>

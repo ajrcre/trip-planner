@@ -13,8 +13,58 @@ import {
   Packer,
 } from "docx"
 
+import { formatUiDateTime } from "@/lib/format-time"
+
+import { parseDayHours, DAY_NAMES_EN, DAY_NAMES_HE, formatAmPmTimesInText } from "@/lib/time-parsing"
+
 // A4 page: 11906 DXA wide, 1440 DXA margins each side = 9026 DXA content width
 const CONTENT_WIDTH = 9026
+
+interface PlaceInfo {
+  name: string
+  address?: string | null
+  phone?: string | null
+  website?: string | null
+  googlePlaceId?: string | null
+  openingHours?: unknown
+}
+
+const typeLabels: Record<string, string> = {
+  attraction: "אטרקציה",
+  meal: "ארוחה",
+  travel: "נסיעה",
+  rest: "מנוחה",
+  custom: "אחר",
+  grocery: "קניות",
+  flight_departure: "המראה",
+  flight_arrival: "נחיתה",
+  car_pickup: "איסוף רכב",
+  car_return: "החזרת רכב",
+  lodging: "לינה",
+  free_time: "זמן חופשי",
+}
+
+function getMealLabel(timeStart: string | null | undefined): string {
+  if (!timeStart) return "ארוחה"
+  const hour = parseInt(timeStart.split(":")[0], 10)
+  if (isNaN(hour)) return "ארוחה"
+  if (hour < 11) return "ארוחת בוקר"
+  if (hour < 16) return "ארוחת צהריים"
+  return "ארוחת ערב"
+}
+
+function getOpeningHoursForDate(openingHours: unknown, dateStr: string): string | null {
+  const allHours = parseDayHours(openingHours)
+  if (allHours.length === 0) return null
+  const targetDate = new Date(dateStr)
+  const dayIndex = targetDate.getUTCDay()
+  const dayNameEn = DAY_NAMES_EN[dayIndex]
+  const dayNameHe = DAY_NAMES_HE[dayNameEn]
+  const today = allHours.find((h) => h.dayName === dayNameEn || h.dayName === dayNameHe)
+  if (!today) return null
+  const dayLabel = DAY_NAMES_HE[today.dayName] ?? today.dayName
+  return `${dayLabel}: ${today.hours ? formatAmPmTimesInText(today.hours) : "סגור"}`
+}
 
 interface TripData {
   name: string
@@ -72,8 +122,16 @@ interface TripData {
       timeEnd?: string | null
       type: string
       notes?: string | null
-      attraction?: { name: string } | null
-      restaurant?: { name: string } | null
+      travelTimeToNextMinutes?: number | null
+      travelLeg?: {
+        driveMinutes?: number | null
+        resolvedOrigin?: { label?: string; lat?: number; lng?: number } | null
+        resolvedDestination?: { label?: string; lat?: number; lng?: number } | null
+      } | null
+      restAccommodationIndex?: number | null
+      attraction?: PlaceInfo | null
+      restaurant?: PlaceInfo | null
+      groceryStore?: PlaceInfo | null
     }>
   }>
   packingItems: Array<{
@@ -91,16 +149,6 @@ interface TripData {
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("he-IL")
-}
-
-function formatDateTime(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("he-IL", {
-    day: "numeric",
-    month: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
 }
 
 function createInfoParagraph(label: string, value: string): Paragraph {
@@ -171,7 +219,7 @@ function buildFlightSection(flights: TripData["flights"]): Paragraph[] {
       paragraphs.push(
         createInfoParagraph(
           "יציאה",
-          `${flight.departureAirport}${flight.departureTime ? ` - ${formatDateTime(flight.departureTime)}` : ""}`
+          `${flight.departureAirport}${flight.departureTime ? ` - ${formatUiDateTime(flight.departureTime)}` : ""}`
         )
       )
     }
@@ -179,7 +227,7 @@ function buildFlightSection(flights: TripData["flights"]): Paragraph[] {
       paragraphs.push(
         createInfoParagraph(
           "נחיתה",
-          `${flight.arrivalAirport}${flight.arrivalTime ? ` - ${formatDateTime(flight.arrivalTime)}` : ""}`
+          `${flight.arrivalAirport}${flight.arrivalTime ? ` - ${formatUiDateTime(flight.arrivalTime)}` : ""}`
         )
       )
     }
@@ -202,8 +250,8 @@ function buildAccommodationSection(accommodations: TripData["accommodation"]): P
     }
     if (acc.name && accs.length === 1) paragraphs.push(createInfoParagraph("שם", acc.name))
     if (acc.address) paragraphs.push(createInfoParagraph("כתובת", acc.address))
-    if (acc.checkIn) paragraphs.push(createInfoParagraph("צ'ק-אין", formatDateTime(acc.checkIn)))
-    if (acc.checkOut) paragraphs.push(createInfoParagraph("צ'ק-אאוט", formatDateTime(acc.checkOut)))
+    if (acc.checkIn) paragraphs.push(createInfoParagraph("צ'ק-אין", formatUiDateTime(acc.checkIn)))
+    if (acc.checkOut) paragraphs.push(createInfoParagraph("צ'ק-אאוט", formatUiDateTime(acc.checkOut)))
     if (acc.contact) paragraphs.push(createInfoParagraph("פרטי קשר", acc.contact))
     if (acc.bookingReference) paragraphs.push(createInfoParagraph("מספר הזמנה", acc.bookingReference))
     if (accs.length > 1) paragraphs.push(new Paragraph({ text: "" }))
@@ -222,9 +270,9 @@ function buildCarRentalSection(carRentals: TripData["carRental"]): Paragraph[] {
 
     if (car.company) paragraphs.push(createInfoParagraph("חברה", car.company))
     if (car.pickupLocation) paragraphs.push(createInfoParagraph("מיקום איסוף", car.pickupLocation))
-    if (car.pickupTime) paragraphs.push(createInfoParagraph("זמן איסוף", formatDateTime(car.pickupTime)))
+    if (car.pickupTime) paragraphs.push(createInfoParagraph("זמן איסוף", formatUiDateTime(car.pickupTime)))
     if (car.returnLocation) paragraphs.push(createInfoParagraph("מיקום החזרה", car.returnLocation))
-    if (car.returnTime) paragraphs.push(createInfoParagraph("זמן החזרה", formatDateTime(car.returnTime)))
+    if (car.returnTime) paragraphs.push(createInfoParagraph("זמן החזרה", formatUiDateTime(car.returnTime)))
     if (car.additionalDetails) paragraphs.push(createInfoParagraph("פרטים נוספים", car.additionalDetails))
     paragraphs.push(new Paragraph({ text: "" }))
   }
@@ -232,54 +280,189 @@ function buildCarRentalSection(carRentals: TripData["carRental"]): Paragraph[] {
   return paragraphs
 }
 
-function buildScheduleSection(dayPlans: TripData["dayPlans"]): Paragraph[] {
+function buildScheduleSection(
+  dayPlans: TripData["dayPlans"],
+  accommodations: TripData["accommodation"]
+): Paragraph[] {
   if (!dayPlans || dayPlans.length === 0) return []
   const paragraphs: Paragraph[] = [createHeading('לו"ז יומי', HeadingLevel.HEADING_2)]
+  const accs = accommodations ?? []
 
   for (const day of dayPlans) {
+    const dayTypeLabel =
+      day.dayType === "travel" ? "יום נסיעה" : day.dayType === "rest" ? "יום מנוחה" : "יום טיול"
+
     paragraphs.push(
-      new Paragraph({
-        bidirectional: true,
-        alignment: AlignmentType.RIGHT,
-        spacing: { before: 200 },
-        children: [
-          new TextRun({
-            text: `${formatDate(day.date)} - ${day.dayType === "travel" ? "יום נסיעה" : day.dayType === "rest" ? "יום מנוחה" : "יום טיול"}`,
-            bold: true,
-            rightToLeft: true,
-            size: 24,
-          }),
-        ],
-      })
+      createHeading(`${formatDate(day.date)} - ${dayTypeLabel}`, HeadingLevel.HEADING_3)
     )
 
     for (const activity of day.activities) {
-      const timePart = activity.timeStart ? `${activity.timeStart}${activity.timeEnd ? `-${activity.timeEnd}` : ""}` : ""
-      const namePart =
-        activity.type === "attraction" && activity.attraction
-          ? activity.attraction.name
-          : activity.type === "restaurant" && activity.restaurant
-            ? activity.restaurant.name
-            : activity.type === "travel"
-              ? "נסיעה"
-              : activity.type === "free_time"
-                ? "זמן חופשי"
-                : activity.type
-      const notesPart = activity.notes ? ` (${activity.notes})` : ""
+      const place = activity.attraction ?? activity.restaurant ?? activity.groceryStore
+      const label =
+        activity.type === "meal"
+          ? getMealLabel(activity.timeStart)
+          : typeLabels[activity.type] ?? activity.type
+
+      // Build activity name
+      let name: string
+      if (
+        activity.type === "travel" &&
+        activity.travelLeg?.resolvedOrigin &&
+        activity.travelLeg?.resolvedDestination
+      ) {
+        name = `${activity.travelLeg.resolvedOrigin.label} → ${activity.travelLeg.resolvedDestination.label}`
+      } else if (
+        activity.type === "rest" &&
+        activity.restAccommodationIndex != null &&
+        accs[activity.restAccommodationIndex]?.name
+      ) {
+        name = `מנוחה — ${accs[activity.restAccommodationIndex]!.name}`
+      } else {
+        name = place?.name ?? activity.notes ?? label
+      }
+
+      // Time range
+      const timePart = activity.timeStart
+        ? `${activity.timeStart}${activity.timeEnd ? ` - ${activity.timeEnd}` : ""}`
+        : ""
+
+      // Main activity line: time + type label + name
+      const runs: TextRun[] = []
+      if (timePart) {
+        runs.push(new TextRun({ text: timePart + "  ", bold: true, rightToLeft: true }))
+      }
+      runs.push(new TextRun({ text: `[${label}] `, rightToLeft: true, color: "666666", size: 18 }))
+      runs.push(new TextRun({ text: name, bold: true, rightToLeft: true }))
 
       paragraphs.push(
         new Paragraph({
           bidirectional: true,
           alignment: AlignmentType.RIGHT,
-          bullet: { level: 0 },
-          children: [
-            new TextRun({
-              text: `${timePart ? timePart + " - " : ""}${namePart}${notesPart}`,
-              rightToLeft: true,
-            }),
-          ],
+          spacing: { before: 120 },
+          children: runs,
         })
       )
+
+      // Notes (for non-custom, non-travel types when name isn't already the notes)
+      if (
+        activity.notes &&
+        activity.type !== "custom" &&
+        activity.type !== "travel" &&
+        activity.notes !== name
+      ) {
+        paragraphs.push(
+          new Paragraph({
+            bidirectional: true,
+            alignment: AlignmentType.RIGHT,
+            indent: { right: 400 },
+            children: [
+              new TextRun({ text: activity.notes, rightToLeft: true, italics: true, color: "555555", size: 18 }),
+            ],
+          })
+        )
+      }
+
+      // Travel driving info
+      if (activity.type === "travel" && activity.travelLeg?.driveMinutes != null) {
+        paragraphs.push(
+          new Paragraph({
+            bidirectional: true,
+            alignment: AlignmentType.RIGHT,
+            indent: { right: 400 },
+            children: [
+              new TextRun({
+                text: `🚗 ${activity.travelLeg.driveMinutes} דקות נסיעה משוערות`,
+                rightToLeft: true,
+                size: 18,
+                color: "7C3AED",
+              }),
+            ],
+          })
+        )
+      }
+
+      // Navigation links for travel activities
+      if (
+        activity.type === "travel" &&
+        activity.travelLeg?.resolvedOrigin?.lat != null &&
+        activity.travelLeg?.resolvedDestination?.lat != null
+      ) {
+        const orig = activity.travelLeg.resolvedOrigin!
+        const dest = activity.travelLeg.resolvedDestination!
+        paragraphs.push(
+          new Paragraph({
+            bidirectional: true,
+            alignment: AlignmentType.RIGHT,
+            indent: { right: 400 },
+            children: [
+              new TextRun({
+                text: `Google Maps: https://www.google.com/maps/dir/?api=1&origin=${orig.lat},${orig.lng}&destination=${dest.lat},${dest.lng}&travelmode=driving`,
+                rightToLeft: false,
+                size: 16,
+                color: "2563EB",
+              }),
+            ],
+          })
+        )
+      }
+
+      // Place details (address, phone, website, opening hours)
+      if (place) {
+        const details: string[] = []
+        if (place.address) details.push(`📍 ${place.address}`)
+        if (place.phone) details.push(`📞 ${place.phone}`)
+        if (place.website) {
+          try {
+            details.push(`🌐 ${new URL(place.website).hostname}  (${place.website})`)
+          } catch {
+            details.push(`🌐 ${place.website}`)
+          }
+        }
+        if (place.openingHours) {
+          const hours = getOpeningHoursForDate(place.openingHours, day.date)
+          if (hours) details.push(`🕐 ${hours}`)
+        }
+        if (place.googlePlaceId) {
+          details.push(
+            `🗺️ https://www.google.com/maps/place/?q=place_id:${place.googlePlaceId}`
+          )
+        }
+
+        for (const detail of details) {
+          paragraphs.push(
+            new Paragraph({
+              bidirectional: true,
+              alignment: AlignmentType.RIGHT,
+              indent: { right: 400 },
+              children: [
+                new TextRun({ text: detail, rightToLeft: true, size: 16, color: "555555" }),
+              ],
+            })
+          )
+        }
+      }
+
+      // Driving time to next activity
+      if (
+        activity.travelTimeToNextMinutes != null &&
+        activity.travelTimeToNextMinutes > 0
+      ) {
+        paragraphs.push(
+          new Paragraph({
+            bidirectional: true,
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 60, after: 60 },
+            children: [
+              new TextRun({
+                text: `🚗 ${activity.travelTimeToNextMinutes} דקות נסיעה`,
+                rightToLeft: true,
+                size: 16,
+                color: "888888",
+              }),
+            ],
+          })
+        )
+      }
     }
   }
 
@@ -523,7 +706,7 @@ export async function generateTripDocx(trip: TripData): Promise<Buffer> {
     ...buildFlightSection(trip.flights),
     ...buildAccommodationSection(trip.accommodation),
     ...buildCarRentalSection(trip.carRental),
-    ...buildScheduleSection(trip.dayPlans),
+    ...buildScheduleSection(trip.dayPlans, trip.accommodation),
     ...buildAttractionsSection(trip.attractions),
     ...buildRestaurantsSection(trip.restaurants),
     ...buildPackingSection(trip.packingItems),
@@ -562,6 +745,15 @@ export async function generateTripDocx(trip: TripData): Promise<Buffer> {
           quickFormat: true,
           run: { size: 28, bold: true, font: "Arial", rightToLeft: true },
           paragraph: { alignment: AlignmentType.RIGHT, spacing: { before: 200, after: 100 } },
+        },
+        {
+          id: "Heading3",
+          name: "Heading 3",
+          basedOn: "Normal",
+          next: "Normal",
+          quickFormat: true,
+          run: { size: 24, bold: true, font: "Arial", rightToLeft: true },
+          paragraph: { alignment: AlignmentType.RIGHT, spacing: { before: 200, after: 80 } },
         },
         {
           id: "Title",

@@ -3,6 +3,8 @@
 export interface Accommodation {
   name?: string;
   address?: string;
+  /** Booking site or property URL when stored on the trip */
+  website?: string;
   checkIn?: string; // ISO date or datetime string
   checkOut?: string; // ISO date or datetime string
   contact?: string;

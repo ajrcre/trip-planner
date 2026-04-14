@@ -17,6 +17,7 @@ const activityTypeLabels: Record<string, string> = {
   rest: "מנוחה",
   travel: "נסיעה",
   custom: "אחר",
+  grocery: "קניות מכולת",
   lodging: "לינה",
 }
 
@@ -26,6 +27,7 @@ const activityTypeIcons: Record<string, string> = {
   rest: "☕",
   travel: "🚗",
   custom: "📝",
+  grocery: "🛒",
   lodging: "🏨",
 }
 

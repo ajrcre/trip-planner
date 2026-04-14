@@ -6,6 +6,7 @@ interface AccommodationFormData {
   _id: number
   name: string
   address: string
+  website: string
   checkIn: string
   checkOut: string
   contact: string
@@ -19,7 +20,7 @@ interface AccommodationsListProps {
 
 let _nextId = 1
 export function makeEmptyAccommodation(): AccommodationFormData {
-  return { _id: _nextId++, name: "", address: "", checkIn: "", checkOut: "", contact: "", bookingReference: "" }
+  return { _id: _nextId++, name: "", address: "", website: "", checkIn: "", checkOut: "", contact: "", bookingReference: "" }
 }
 
 export function AccommodationsList({ items, onChange }: AccommodationsListProps) {
@@ -43,6 +44,7 @@ export function AccommodationsList({ items, onChange }: AccommodationsListProps)
           <div className="grid gap-4 sm:grid-cols-2">
             <InputField label="שם" value={acc.name} onChange={(v) => updateItem(idx, "name", v)} />
             <InputField label="כתובת" value={acc.address} onChange={(v) => updateItem(idx, "address", v)} />
+            <InputField label="אתר" value={acc.website} onChange={(v) => updateItem(idx, "website", v)} />
             <InputField label="צ'ק-אין" type="datetime-local" value={acc.checkIn} onChange={(v) => updateItem(idx, "checkIn", v)} />
             <InputField label="צ'ק-אאוט" type="datetime-local" value={acc.checkOut} onChange={(v) => updateItem(idx, "checkOut", v)} />
             <InputField label="פרטי קשר" value={acc.contact} onChange={(v) => updateItem(idx, "contact", v)} />

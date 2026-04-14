@@ -1,40 +1,18 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+
 import { prisma } from "@/lib/prisma"
 import { defaultShoppingTemplate } from "@/lib/list-templates"
-
-async function verifyTripAccess(tripId: string, userId: string) {
-  const trip = await prisma.trip.findUnique({
-    where: { id: tripId },
-    include: { shares: true },
-  })
-
-  if (!trip) return null
-
-  const isOwner = trip.userId === userId
-  const isShared = trip.shares.some((s) => s.userId === userId)
-
-  if (!isOwner && !isShared) return null
-
-  return trip
-}
+import { requireTripAccess } from "@/lib/trip-access"
+import { translateShoppingItems } from "@/lib/gemini"
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ tripId: string }> }
 ) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
   const { tripId } = await params
 
-  const trip = await verifyTripAccess(tripId, session.user.id)
-  if (!trip) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 })
-  }
+  const result = await requireTripAccess(tripId)
+  if (result instanceof NextResponse) return result
 
   const items = await prisma.shoppingItem.findMany({
     where: { tripId },
@@ -57,17 +35,10 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ tripId: string }> }
 ) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
   const { tripId } = await params
 
-  const trip = await verifyTripAccess(tripId, session.user.id)
-  if (!trip) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 })
-  }
+  const result = await requireTripAccess(tripId)
+  if (result instanceof NextResponse) return result
 
   const body = await request.json()
 
@@ -134,6 +105,36 @@ export async function POST(
     },
   })
 
+  // Fire-and-forget: translate in the background so the UI isn't blocked
+  const trip = await prisma.trip.findUnique({
+    where: { id: tripId },
+    select: { destinationInfo: true },
+  })
+  const countryCode = (trip?.destinationInfo as Record<string, unknown>)
+    ?.countryCode as string | undefined
+
+  if (countryCode) {
+    translateShoppingItems(
+      [{ id: newItem.id, item: newItem.item }],
+      countryCode
+    )
+      .then(async (translations) => {
+        if (translations[0]) {
+          await prisma.shoppingItem.update({
+            where: { id: newItem.id },
+            data: {
+              localName: translations[0].localName,
+              transliteration: translations[0].transliteration,
+              localLanguage: countryCode,
+            },
+          })
+        }
+      })
+      .catch((err) => {
+        console.error("Background translate failed for new shopping item:", err)
+      })
+  }
+
   return NextResponse.json(newItem, { status: 201 })
 }
 
@@ -141,17 +142,10 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ tripId: string }> }
 ) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
   const { tripId } = await params
 
-  const trip = await verifyTripAccess(tripId, session.user.id)
-  if (!trip) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 })
-  }
+  const result = await requireTripAccess(tripId)
+  if (result instanceof NextResponse) return result
 
   const url = new URL(request.url)
   const itemId = url.searchParams.get("itemId")
@@ -193,17 +187,10 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ tripId: string }> }
 ) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
   const { tripId } = await params
 
-  const trip = await verifyTripAccess(tripId, session.user.id)
-  if (!trip) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 })
-  }
+  const result = await requireTripAccess(tripId)
+  if (result instanceof NextResponse) return result
 
   const url = new URL(request.url)
   const itemId = url.searchParams.get("itemId")

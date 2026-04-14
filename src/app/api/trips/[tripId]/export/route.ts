@@ -35,6 +35,7 @@ export async function GET(
             include: {
               attraction: true,
               restaurant: true,
+              groceryStore: true,
             },
             orderBy: { sortOrder: "asc" },
           },
@@ -74,6 +75,12 @@ export async function GET(
     dayPlans: trip.dayPlans.map((dp) => ({
       ...dp,
       date: dp.date.toISOString(),
+      activities: dp.activities.map((a) => ({
+        ...a,
+        // travelLeg is stored as Json in Prisma — cast to the shape expected by export-docx
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        travelLeg: a.travelLeg as any,
+      })),
     })),
     packingItems: trip.packingItems,
     shoppingItems: trip.shoppingItems,

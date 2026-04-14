@@ -22,6 +22,7 @@ describe("computeDrivingTimesForDay", () => {
     const activity = {
       attraction: null,
       restaurant: null,
+      groceryStore: null,
     }
 
     const result = await computeDrivingTimesForDay(accommodations, activity)
@@ -34,6 +35,7 @@ describe("computeDrivingTimesForDay", () => {
     const activity = {
       attraction: { lat: 3, lng: 4 },
       restaurant: null,
+      groceryStore: null,
     }
 
     const result = await computeDrivingTimesForDay(accommodations, activity)
@@ -49,6 +51,7 @@ describe("computeDrivingTimesForDay", () => {
     const activity = {
       attraction: { lat: 3, lng: 4 },
       restaurant: null,
+      groceryStore: null,
     }
 
     const result = await computeDrivingTimesForDay(accommodations, activity)
@@ -67,6 +70,7 @@ describe("computeDrivingTimesForDay", () => {
     const activity = {
       attraction: null,
       restaurant: { lat: 7, lng: 8 },
+      groceryStore: null,
     }
 
     const result = await computeDrivingTimesForDay(accommodations, activity)
@@ -87,6 +91,7 @@ describe("computeDrivingTimesForDay", () => {
     const activity = {
       attraction: { lat: 3, lng: 4 },
       restaurant: null,
+      groceryStore: null,
     }
 
     const result = await computeDrivingTimesForDay(accommodations, activity)
@@ -105,6 +110,7 @@ describe("computeDrivingTimesForDay", () => {
     const activity = {
       attraction: { lat: 3, lng: 4 },
       restaurant: { lat: 5, lng: 6 },
+      groceryStore: null,
     }
 
     const result = await computeDrivingTimesForDay(accommodations, activity)
@@ -118,7 +124,7 @@ describe("computeDrivingTimesForDay", () => {
     mockedCalculateRoute.mockResolvedValue({ durationMinutes: 25, distanceKm: 18.5 })
 
     const accommodations = [{ name: "Hotel A", coordinates: { lat: 1, lng: 2 } }]
-    const activity = { attraction: { lat: 3, lng: 4 }, restaurant: null }
+    const activity = { attraction: { lat: 3, lng: 4 }, restaurant: null, groceryStore: null }
 
     // Call twice
     await computeDrivingTimesForDay(accommodations, activity)
@@ -137,6 +143,7 @@ describe("computeDrivingTimesForDay", () => {
     const activity = {
       attraction: { lat: 3, lng: 4 },
       restaurant: null,
+      groceryStore: null,
     }
 
     const result = await computeDrivingTimesForDay(accommodations, activity)

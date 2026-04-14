@@ -1,23 +1,29 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
+import {
+  ItemTable,
+  nameColumn,
+  travelTimeColumn,
+  ratingColumn,
+  openingHoursColumn,
+  statusColumn,
+  linksColumn,
+  deleteColumn,
+  googleMapsUrl,
+  formatOpeningHours,
+  type BaseItem,
+  type ColumnDef,
+} from "@/components/shared/ItemTable"
+import { useTableFiltering, commonComparators } from "@/hooks/useTableFiltering"
+import { useItemActions } from "@/hooks/useItemActions"
 
-interface SavedAttraction {
-  id: string
-  googlePlaceId: string | null
-  name: string
+interface SavedAttraction extends BaseItem {
   description: string | null
-  address: string | null
-  phone: string | null
-  website: string | null
-  openingHours: unknown
   prices: unknown
-  ratingGoogle: number | null
-  travelTimeMinutes: number | null
   travelDistanceKm: number | null
   bookingRequired: boolean
   specialNotes: string | null
-  status: string
   nearbyRestaurantId: string | null
 }
 
@@ -33,19 +39,29 @@ interface AttractionTableProps {
   savedRestaurants?: NearbyRestaurantOption[]
 }
 
-type StatusFilter = "all" | "want" | "maybe"
-type SortField = "name" | "travelTime" | "rating"
+type AttractionSortField = "status" | "travelTime" | "rating" | "name"
 
-const statusLabels: Record<string, string> = {
-  want: "רוצה",
-  maybe: "אולי",
-  rejected: "לא מתאים",
+const sortComparators: Record<AttractionSortField, (a: SavedAttraction, b: SavedAttraction) => number> = {
+  status: commonComparators.byStatus,
+  name: commonComparators.byName,
+  travelTime: commonComparators.byTravelTime,
+  rating: commonComparators.byRating,
 }
 
-const statusColors: Record<string, string> = {
-  want: "bg-rose-100 text-rose-700 dark:bg-rose-900/20 dark:text-rose-400",
-  maybe: "bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400",
-  rejected: "bg-zinc-100 text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400",
+const sortOptions = [
+  { value: "status", label: "מיון: סטטוס" },
+  { value: "travelTime", label: "מיון: זמן נסיעה" },
+  { value: "rating", label: "מיון: דירוג" },
+  { value: "name", label: "מיון: שם" },
+]
+
+function formatPrices(prices: unknown): string | null {
+  if (!prices) return null
+  if (typeof prices === "string") return prices
+  if (typeof prices === "object" && prices !== null) {
+    return JSON.stringify(prices)
+  }
+  return null
 }
 
 export function AttractionTable({
@@ -54,323 +70,202 @@ export function AttractionTable({
   onUpdate,
   savedRestaurants = [],
 }: AttractionTableProps) {
-  const [filter, setFilter] = useState<StatusFilter>("all")
-  const [sortField, setSortField] = useState<SortField>("name")
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [editingNotesId, setEditingNotesId] = useState<string | null>(null)
+  const [notesValue, setNotesValue] = useState("")
 
-  const filtered = attractions.filter((a) => {
-    if (filter === "all") return a.status !== "rejected"
-    return a.status === filter
+  const { filter, setFilter, sortField, setSortField, sorted } = useTableFiltering<SavedAttraction, AttractionSortField>({
+    items: attractions,
+    defaultSort: "status",
+    sortComparators,
   })
 
-  const sorted = [...filtered].sort((a, b) => {
-    if (sortField === "name") return a.name.localeCompare(b.name)
-    if (sortField === "travelTime") {
-      return (a.travelTimeMinutes ?? 999) - (b.travelTimeMinutes ?? 999)
-    }
-    if (sortField === "rating") {
-      return (b.ratingGoogle ?? 0) - (a.ratingGoogle ?? 0)
-    }
-    return 0
+  const { updatingId, handleStatusChange, handleDelete, handleFieldUpdate } = useItemActions({
+    tripId,
+    entityPath: "attractions",
+    onUpdate,
   })
 
-  async function handleStatusChange(id: string, status: string) {
-    setUpdatingId(id)
-    try {
-      await fetch(`/api/trips/${tripId}/attractions/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      })
-      onUpdate()
-    } catch (error) {
-      console.error("Status update failed:", error)
-    } finally {
-      setUpdatingId(null)
-    }
+  async function handleNotesSave(id: string) {
+    await handleFieldUpdate(id, { specialNotes: notesValue || null })
+    setEditingNotesId(null)
   }
 
   async function handleNearbyRestaurantChange(id: string, restaurantId: string | null) {
-    setUpdatingId(id)
-    try {
-      await fetch(`/api/trips/${tripId}/attractions/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nearbyRestaurantId: restaurantId }),
-      })
-      onUpdate()
-    } catch (error) {
-      console.error("Nearby restaurant update failed:", error)
-    } finally {
-      setUpdatingId(null)
-    }
+    await handleFieldUpdate(id, { nearbyRestaurantId: restaurantId })
   }
 
-  async function handleDelete(id: string) {
-    setUpdatingId(id)
-    try {
-      await fetch(`/api/trips/${tripId}/attractions/${id}`, {
-        method: "DELETE",
-      })
-      onUpdate()
-    } catch (error) {
-      console.error("Delete failed:", error)
-    } finally {
-      setUpdatingId(null)
-    }
-  }
-
-  function formatOpeningHours(hours: unknown): string | null {
-    if (!hours) return null
-    if (typeof hours === "object" && hours !== null && "weekdayDescriptions" in hours) {
-      const descs = (hours as { weekdayDescriptions?: string[] }).weekdayDescriptions
-      return descs?.join(", ") ?? null
-    }
-    return null
-  }
-
-  function formatPrices(prices: unknown): string | null {
-    if (!prices) return null
-    if (typeof prices === "string") return prices
-    if (typeof prices === "object" && prices !== null) {
-      return JSON.stringify(prices)
-    }
-    return null
-  }
-
-  if (attractions.length === 0) {
-    return (
-      <div className="flex h-48 items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800/50">
-        <span className="text-sm text-zinc-400">
-          עדיין לא נשמרו אטרקציות. עבור ללשונית &quot;גלה&quot; כדי לחפש.
-        </span>
-      </div>
-    )
-  }
+  const columns = useMemo((): ColumnDef<SavedAttraction>[] => [
+    nameColumn<SavedAttraction>(),
+    travelTimeColumn<SavedAttraction>(),
+    ratingColumn<SavedAttraction>(),
+    openingHoursColumn<SavedAttraction>(),
+    statusColumn<SavedAttraction>(handleStatusChange, updatingId),
+    linksColumn<SavedAttraction>(),
+    // Notes column (attraction-specific)
+    {
+      key: "notes",
+      header: "הערות",
+      render: (item) => {
+        if (editingNotesId === item.id) {
+          return (
+            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+              <input
+                type="text"
+                value={notesValue}
+                onChange={(e) => setNotesValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleNotesSave(item.id)
+                  if (e.key === "Escape") setEditingNotesId(null)
+                }}
+                className="w-40 rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-700"
+                autoFocus
+                dir="rtl"
+              />
+              <button
+                onClick={() => handleNotesSave(item.id)}
+                className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700"
+              >
+                {"\u2713"}
+              </button>
+              <button
+                onClick={() => setEditingNotesId(null)}
+                className="rounded bg-zinc-200 px-2 py-1 text-xs hover:bg-zinc-300 dark:bg-zinc-600"
+              >
+                {"\u2717"}
+              </button>
+            </div>
+          )
+        }
+        return (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setEditingNotesId(item.id)
+              setNotesValue(item.specialNotes ?? "")
+            }}
+            className="max-w-40 truncate text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
+            title={item.specialNotes ?? "הוסף הערה"}
+          >
+            {item.specialNotes || "+ הערה"}
+          </button>
+        )
+      },
+    },
+    deleteColumn<SavedAttraction>(handleDelete, updatingId),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [updatingId, editingNotesId, notesValue])
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Filters and sort */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-1 rounded-lg border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-700 dark:bg-zinc-800">
-          {(["all", "want", "maybe"] as const).map((f) => (
+    <ItemTable<SavedAttraction>
+      items={attractions}
+      sorted={sorted}
+      columns={columns}
+      sortOptions={sortOptions}
+      sortField={sortField}
+      setSortField={(f) => setSortField(f as AttractionSortField)}
+      filter={filter}
+      setFilter={setFilter}
+      updatingId={updatingId}
+      expandedId={expandedId}
+      setExpandedId={setExpandedId}
+      handleStatusChange={handleStatusChange}
+      handleDelete={handleDelete}
+      emptyMessage={'עדיין לא נשמרו אטרקציות. עבור ללשונית "גלה" כדי לחפש.'}
+      renderExpanded={(attraction) => (
+        <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/50">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold">{attraction.name}</h3>
             <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                filter === f
-                  ? "bg-white text-blue-600 shadow-sm dark:bg-zinc-700 dark:text-blue-400"
-                  : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400"
-              }`}
+              onClick={() => setExpandedId(null)}
+              className="text-xs text-zinc-400 hover:text-zinc-600"
             >
-              {f === "all" ? "הכל" : statusLabels[f]}
+              {"\u2717"} סגור
             </button>
-          ))}
-        </div>
-
-        <select
-          value={sortField}
-          onChange={(e) => setSortField(e.target.value as SortField)}
-          className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-800"
-          dir="rtl"
-        >
-          <option value="name">מיון: שם</option>
-          <option value="travelTime">מיון: זמן נסיעה</option>
-          <option value="rating">מיון: דירוג</option>
-        </select>
-      </div>
-
-      {/* Table */}
-      <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-700">
-        <table className="w-full text-sm" dir="rtl">
-          <thead className="bg-zinc-50 dark:bg-zinc-800/50">
-            <tr>
-              <th className="px-3 py-2 text-right font-medium text-zinc-600 dark:text-zinc-400">שם</th>
-              <th className="px-3 py-2 text-right font-medium text-zinc-600 dark:text-zinc-400">תיאור</th>
-              <th className="px-3 py-2 text-right font-medium text-zinc-600 dark:text-zinc-400">כתובת</th>
-              <th className="px-3 py-2 text-right font-medium text-zinc-600 dark:text-zinc-400">זמן נסיעה</th>
-              <th className="px-3 py-2 text-right font-medium text-zinc-600 dark:text-zinc-400">דירוג</th>
-              <th className="px-3 py-2 text-right font-medium text-zinc-600 dark:text-zinc-400">מסעדה קרובה</th>
-              <th className="px-3 py-2 text-right font-medium text-zinc-600 dark:text-zinc-400">סטטוס</th>
-              <th className="px-3 py-2 text-right font-medium text-zinc-600 dark:text-zinc-400">פעולות</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-100 bg-white dark:divide-zinc-700 dark:bg-zinc-800">
-            {sorted.map((attraction) => (
-              <>
-                <tr
-                  key={attraction.id}
-                  className="cursor-pointer transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-750"
-                  onClick={() =>
-                    setExpandedId(
-                      expandedId === attraction.id ? null : attraction.id
-                    )
-                  }
+          </div>
+          <div className="flex flex-col gap-2 text-sm">
+            {attraction.description && (
+              <div>
+                <span className="font-medium text-zinc-600 dark:text-zinc-400">תיאור: </span>
+                <span>{attraction.description}</span>
+              </div>
+            )}
+            {attraction.address && (
+              <div>
+                <span className="font-medium text-zinc-600 dark:text-zinc-400">כתובת: </span>
+                <span>{attraction.address}</span>
+              </div>
+            )}
+            {attraction.phone && (
+              <div>
+                <span className="font-medium text-zinc-600 dark:text-zinc-400">טלפון: </span>
+                <span dir="ltr">{attraction.phone}</span>
+              </div>
+            )}
+            {attraction.website && (
+              <div>
+                <span className="font-medium text-zinc-600 dark:text-zinc-400">אתר: </span>
+                <a
+                  href={attraction.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline dark:text-blue-400"
                 >
-                  <td className="px-3 py-2 font-medium">{attraction.name}</td>
-                  <td className="max-w-48 truncate px-3 py-2 text-zinc-600 dark:text-zinc-400">
-                    {attraction.description ?? "—"}
-                  </td>
-                  <td className="max-w-40 truncate px-3 py-2 text-zinc-600 dark:text-zinc-400">
-                    {attraction.address ?? "—"}
-                  </td>
-                  <td className="px-3 py-2 text-zinc-600 dark:text-zinc-400">
-                    {attraction.travelTimeMinutes
-                      ? `${attraction.travelTimeMinutes} דק׳`
-                      : "—"}
-                  </td>
-                  <td className="px-3 py-2 text-zinc-600 dark:text-zinc-400">
-                    {attraction.ratingGoogle
-                      ? `${attraction.ratingGoogle} &#9733;`
-                      : "—"}
-                  </td>
-                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                    {savedRestaurants.length > 0 ? (
-                      <select
-                        value={attraction.nearbyRestaurantId ?? ""}
-                        onChange={(e) =>
-                          handleNearbyRestaurantChange(
-                            attraction.id,
-                            e.target.value || null
-                          )
-                        }
-                        disabled={updatingId === attraction.id}
-                        className="w-full rounded border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-800"
-                        dir="rtl"
-                      >
-                        <option value="">—</option>
-                        {savedRestaurants.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span className="text-xs text-zinc-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        statusColors[attraction.status] ?? statusColors.maybe
-                      }`}
-                    >
-                      {statusLabels[attraction.status] ?? attraction.status}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                      {attraction.googlePlaceId && (
-                        <a
-                          href={`https://www.google.com/maps/place/?q=place_id:${attraction.googlePlaceId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
-                        >
-                          מפה
-                        </a>
-                      )}
-                      <button
-                        onClick={() => handleDelete(attraction.id)}
-                        disabled={updatingId === attraction.id}
-                        className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
-                      >
-                        מחק
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                {expandedId === attraction.id && (
-                  <tr key={`${attraction.id}-expanded`}>
-                    <td colSpan={8} className="bg-zinc-50 px-4 py-3 dark:bg-zinc-900/50">
-                      <div className="flex flex-col gap-2 text-sm">
-                        {attraction.phone && (
-                          <div>
-                            <span className="font-medium text-zinc-600 dark:text-zinc-400">טלפון: </span>
-                            <span dir="ltr">{attraction.phone}</span>
-                          </div>
-                        )}
-                        {attraction.website && (
-                          <div>
-                            <span className="font-medium text-zinc-600 dark:text-zinc-400">אתר: </span>
-                            <a
-                              href={attraction.website}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline dark:text-blue-400"
-                            >
-                              {attraction.website}
-                            </a>
-                          </div>
-                        )}
-                        {formatOpeningHours(attraction.openingHours) && (
-                          <div>
-                            <span className="font-medium text-zinc-600 dark:text-zinc-400">שעות פתיחה: </span>
-                            <span>{formatOpeningHours(attraction.openingHours)}</span>
-                          </div>
-                        )}
-                        {formatPrices(attraction.prices) && (
-                          <div>
-                            <span className="font-medium text-zinc-600 dark:text-zinc-400">מחירים: </span>
-                            <span>{formatPrices(attraction.prices)}</span>
-                          </div>
-                        )}
-                        {attraction.travelDistanceKm && (
-                          <div>
-                            <span className="font-medium text-zinc-600 dark:text-zinc-400">מרחק: </span>
-                            <span>{attraction.travelDistanceKm} ק&quot;מ</span>
-                          </div>
-                        )}
-                        {attraction.specialNotes && (
-                          <div>
-                            <span className="font-medium text-zinc-600 dark:text-zinc-400">הערות: </span>
-                            <span>{attraction.specialNotes}</span>
-                          </div>
-                        )}
-                        <div>
-                          <span className="font-medium text-zinc-600 dark:text-zinc-400">הזמנה מראש: </span>
-                          <span>{attraction.bookingRequired ? "כן" : "לא"}</span>
-                        </div>
-                        {/* Status change buttons */}
-                        <div className="flex gap-2 pt-2">
-                          {attraction.status !== "want" && (
-                            <button
-                              onClick={() => handleStatusChange(attraction.id, "want")}
-                              disabled={updatingId === attraction.id}
-                              className="rounded-lg bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-400"
-                            >
-                              רוצה
-                            </button>
-                          )}
-                          {attraction.status !== "maybe" && (
-                            <button
-                              onClick={() => handleStatusChange(attraction.id, "maybe")}
-                              disabled={updatingId === attraction.id}
-                              className="rounded-lg bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400"
-                            >
-                              אולי
-                            </button>
-                          )}
-                          {attraction.status !== "rejected" && (
-                            <button
-                              onClick={() => handleStatusChange(attraction.id, "rejected")}
-                              disabled={updatingId === attraction.id}
-                              className="rounded-lg bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-700 dark:text-zinc-400"
-                            >
-                              לא מתאים
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+                  {attraction.website}
+                </a>
+              </div>
+            )}
+            {formatOpeningHours(attraction.openingHours) && (
+              <div>
+                <span className="font-medium text-zinc-600 dark:text-zinc-400">שעות פתיחה: </span>
+                <span className="whitespace-pre-line">{formatOpeningHours(attraction.openingHours)}</span>
+              </div>
+            )}
+            {formatPrices(attraction.prices) && (
+              <div>
+                <span className="font-medium text-zinc-600 dark:text-zinc-400">מחירים: </span>
+                <span>{formatPrices(attraction.prices)}</span>
+              </div>
+            )}
+            {attraction.travelTimeMinutes != null && (
+              <div>
+                <span className="font-medium text-zinc-600 dark:text-zinc-400">נסיעה מהלינה: </span>
+                <span>{attraction.travelTimeMinutes} דק׳ ({attraction.travelDistanceKm} ק״מ)</span>
+              </div>
+            )}
+            <div>
+              <span className="font-medium text-zinc-600 dark:text-zinc-400">הזמנה מראש: </span>
+              <span>{attraction.bookingRequired ? "כן" : "לא"}</span>
+            </div>
+            {attraction.specialNotes && (
+              <div>
+                <span className="font-medium text-zinc-600 dark:text-zinc-400">הערות: </span>
+                <span>{attraction.specialNotes}</span>
+              </div>
+            )}
+            {/* Nearby restaurant */}
+            {savedRestaurants.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-zinc-600 dark:text-zinc-400">מסעדה קרובה: </span>
+                <select
+                  value={attraction.nearbyRestaurantId ?? ""}
+                  onChange={(e) =>
+                    handleNearbyRestaurantChange(attraction.id, e.target.value || null)
+                  }
+                  disabled={updatingId === attraction.id}
+                  className="rounded border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-800"
+                  dir="rtl"
+                >
+                  <option value="">—</option>
+                  {savedRestaurants.map((r) => (
+                    <option key={r.id} value={r.id}>{r.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    />
   )
 }
