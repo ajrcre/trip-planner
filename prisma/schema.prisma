@@ -153,6 +153,7 @@ model TripInvite {
   inviter      User     @relation("SentInvites", fields: [invitedBy], references: [id])
 
   @@unique([tripId, invitedEmail])
+  @@index([invitedEmail])
 }
 
 // === Attraction ===
