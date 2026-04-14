@@ -28,7 +28,8 @@ export async function verifyTripAccess(
 
   const share = trip.shares.find((s) => s.userId === userId)
   if (share) {
-    return { trip, role: share.role as "editor" | "viewer" }
+    const role: "editor" | "viewer" = share.role === "editor" ? "editor" : "viewer"
+    return { trip, role }
   }
 
   return null
