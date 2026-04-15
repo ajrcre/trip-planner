@@ -21,6 +21,7 @@ export async function GET(
 
   const result = await requireTripAccess(tripId)
   if (result instanceof NextResponse) return result
+  const { role } = result
 
   const fullTrip = await prisma.trip.findUnique({
     where: { id: tripId },
@@ -40,6 +41,7 @@ export async function GET(
     ...fullTrip,
     flights: normalizeFlights(fullTrip!.flights),
     carRental: normalizeCarRentals(fullTrip!.carRental),
+    role,
   }
 
   return NextResponse.json(normalized)

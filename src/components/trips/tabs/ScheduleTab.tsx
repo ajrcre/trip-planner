@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react"
 import { ScheduleView } from "@/components/schedule/ScheduleView"
 import type { Trip } from "../TripDashboard"
+import type { TripRole } from "@/types/sharing"
 
-export function ScheduleTab({ trip }: { trip: Trip }) {
+export function ScheduleTab({ trip, role: _role }: { trip: Trip; role: TripRole }) {
   const [attractions, setAttractions] = useState<{ id: string; name: string; status: string }[]>([])
   const [restaurants, setRestaurants] = useState<{ id: string; name: string; status: string }[]>([])
   const [groceryStores, setGroceryStores] = useState<{ id: string; name: string; status: string }[]>([])

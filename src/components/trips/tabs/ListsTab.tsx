@@ -3,8 +3,9 @@
 import { useState } from "react"
 import { PackingList } from "@/components/lists/PackingList"
 import { ShoppingList } from "@/components/lists/ShoppingList"
+import type { TripRole } from "@/types/sharing"
 
-export function ListsTab({ tripId }: { tripId: string }) {
+export function ListsTab({ tripId, role: _role }: { tripId: string; role: TripRole }) {
   const [listTab, setListTab] = useState<"packing" | "shopping">("packing")
 
   return (

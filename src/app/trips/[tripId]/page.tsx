@@ -68,7 +68,7 @@ export default function TripPage() {
           חזרה לטיולים
         </Link>
       </div>
-      <TripDashboard trip={trip} />
+      <TripDashboard trip={trip} role={trip.role ?? "owner"} />
     </div>
   )
 }

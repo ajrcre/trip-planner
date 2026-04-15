@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react"
 import { DiscoveryPanel as GroceryStoreDiscoveryPanel } from "@/components/grocery-stores/DiscoveryPanel"
 import { GroceryStoreTable } from "@/components/grocery-stores/GroceryStoreTable"
 import type { Trip } from "../TripDashboard"
+import type { TripRole } from "@/types/sharing"
 
 interface SavedGroceryStore {
   id: string
@@ -22,9 +23,10 @@ interface SavedGroceryStore {
   status: string
 }
 
-export function GroceryStoresTab({ trip }: { trip: Trip }) {
+export function GroceryStoresTab({ trip, role }: { trip: Trip; role: TripRole }) {
+  const canEdit = role !== "viewer"
   const [subView, setSubView] = useState<"discover" | "my">(
-    trip.groceryStores.length > 0 ? "my" : "discover"
+    trip.groceryStores.length > 0 ? "my" : canEdit ? "discover" : "my"
   )
   const [savedStores, setSavedStores] = useState<SavedGroceryStore[]>(
     trip.groceryStores as unknown as SavedGroceryStore[]
@@ -66,16 +68,18 @@ export function GroceryStoresTab({ trip }: { trip: Trip }) {
         >
           החנויות שלי
         </button>
-        <button
-          onClick={() => setSubView("discover")}
-          className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
-            subView === "discover"
-              ? "bg-white text-blue-600 shadow-sm dark:bg-zinc-700 dark:text-blue-400"
-              : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400"
-          }`}
-        >
-          גלה חנויות
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => setSubView("discover")}
+            className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+              subView === "discover"
+                ? "bg-white text-blue-600 shadow-sm dark:bg-zinc-700 dark:text-blue-400"
+                : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400"
+            }`}
+          >
+            גלה חנויות
+          </button>
+        )}
       </div>
 
       {/* Content */}

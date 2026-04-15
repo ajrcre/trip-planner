@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react"
 import { DiscoveryPanel as RestaurantDiscoveryPanel } from "@/components/restaurants/DiscoveryPanel"
 import { RestaurantTable } from "@/components/restaurants/RestaurantTable"
 import type { Trip } from "../TripDashboard"
+import type { TripRole } from "@/types/sharing"
 
 interface SavedRestaurant {
   id: string
@@ -22,9 +23,10 @@ interface SavedRestaurant {
   status: string
 }
 
-export function RestaurantsTab({ trip }: { trip: Trip }) {
+export function RestaurantsTab({ trip, role }: { trip: Trip; role: TripRole }) {
+  const canEdit = role !== "viewer"
   const [subView, setSubView] = useState<"discover" | "my">(
-    trip.restaurants.length > 0 ? "my" : "discover"
+    trip.restaurants.length > 0 ? "my" : canEdit ? "discover" : "my"
   )
   const [savedRestaurants, setSavedRestaurants] = useState<SavedRestaurant[]>(
     trip.restaurants as unknown as SavedRestaurant[]
@@ -66,16 +68,18 @@ export function RestaurantsTab({ trip }: { trip: Trip }) {
         >
           המסעדות שלי
         </button>
-        <button
-          onClick={() => setSubView("discover")}
-          className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
-            subView === "discover"
-              ? "bg-white text-blue-600 shadow-sm dark:bg-zinc-700 dark:text-blue-400"
-              : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400"
-          }`}
-        >
-          גלה מסעדות
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => setSubView("discover")}
+            className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+              subView === "discover"
+                ? "bg-white text-blue-600 shadow-sm dark:bg-zinc-700 dark:text-blue-400"
+                : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400"
+            }`}
+          >
+            גלה מסעדות
+          </button>
+        )}
       </div>
 
       {/* Content */}

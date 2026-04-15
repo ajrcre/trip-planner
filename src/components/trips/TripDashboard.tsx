@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useCallback } from "react"
+import { useRouter } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { OverviewTab } from "./tabs/OverviewTab"
 import { AttractionsTab } from "./tabs/AttractionsTab"
 import { RestaurantsTab } from "./tabs/RestaurantsTab"
@@ -9,6 +11,8 @@ import { ScheduleTab } from "./tabs/ScheduleTab"
 import { ListsTab } from "./tabs/ListsTab"
 import { ShareExportButtons } from "./ShareExportButtons"
 import { DestinationOverview } from "@/components/trips/DestinationOverview"
+import { FamilyProfileTab } from "./tabs/FamilyProfileTab"
+import type { TripRole } from "@/types/sharing"
 
 export interface Trip {
   id: string
@@ -34,6 +38,7 @@ export interface Trip {
   dayPlans: unknown[]
   packingItems: unknown[]
   shoppingItems: unknown[]
+  role?: TripRole
 }
 
 const tabs = [
@@ -44,6 +49,7 @@ const tabs = [
   { key: "restaurants", label: "מסעדות" },
   { key: "groceryStores", label: "סופר" },
   { key: "lists", label: "רשימות" },
+  { key: "familyProfile", label: "פרופיל משפחה" },
 ] as const
 
 type TabKey = (typeof tabs)[number]["key"]
@@ -52,9 +58,13 @@ function formatDate(date: string) {
   return new Date(date).toLocaleDateString("he-IL")
 }
 
-export function TripDashboard({ trip: initialTrip }: { trip: Trip }) {
+export function TripDashboard({ trip: initialTrip, role: roleProp }: { trip: Trip; role?: TripRole }) {
   const [activeTab, setActiveTab] = useState<TabKey>("overview")
   const [trip, setTrip] = useState<Trip>(initialTrip)
+  const router = useRouter()
+  const { data: session } = useSession()
+
+  const role: TripRole = roleProp ?? initialTrip.role ?? "owner"
 
   const refreshTrip = useCallback(async () => {
     try {
@@ -68,17 +78,43 @@ export function TripDashboard({ trip: initialTrip }: { trip: Trip }) {
     }
   }, [trip.id])
 
+  async function handleLeaveTrip() {
+    if (!session?.user?.id) return
+    if (!confirm("האם אתה בטוח שברצונך לעזוב את הטיול?")) return
+    const res = await fetch(`/api/trips/${trip.id}/members/${session.user.id}`, {
+      method: "DELETE",
+    })
+    if (res.ok) router.push("/trips")
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-3xl font-bold">{trip.name}</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="truncate text-3xl font-bold">{trip.name}</h1>
+            {role === "viewer" && (
+              <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs text-zinc-500 dark:bg-zinc-700">
+                צפייה בלבד
+              </span>
+            )}
+          </div>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
             {trip.destination} | {formatDate(trip.startDate)} - {formatDate(trip.endDate)}
           </p>
         </div>
-        <ShareExportButtons tripId={trip.id} tripName={trip.name} />
+        <div className="flex items-center gap-2">
+          {role !== "owner" && (
+            <button
+              onClick={handleLeaveTrip}
+              className="rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
+            >
+              עזוב טיול
+            </button>
+          )}
+          <ShareExportButtons tripId={trip.id} tripName={trip.name} role={role} />
+        </div>
       </div>
 
       {/* Tabs */}
@@ -108,11 +144,12 @@ export function TripDashboard({ trip: initialTrip }: { trip: Trip }) {
           onGenerated={refreshTrip}
         />
       )}
-      {activeTab === "attractions" && <AttractionsTab trip={trip} />}
-      {activeTab === "restaurants" && <RestaurantsTab trip={trip} />}
-      {activeTab === "groceryStores" && <GroceryStoresTab trip={trip} />}
-      {activeTab === "schedule" && <ScheduleTab trip={trip} />}
-      {activeTab === "lists" && <ListsTab tripId={trip.id} />}
+      {activeTab === "attractions" && <AttractionsTab trip={trip} role={role} />}
+      {activeTab === "restaurants" && <RestaurantsTab trip={trip} role={role} />}
+      {activeTab === "groceryStores" && <GroceryStoresTab trip={trip} role={role} />}
+      {activeTab === "schedule" && <ScheduleTab trip={trip} role={role} />}
+      {activeTab === "lists" && <ListsTab tripId={trip.id} role={role} />}
+      {activeTab === "familyProfile" && <FamilyProfileTab tripId={trip.id} role={role} />}
     </div>
   )
 }
