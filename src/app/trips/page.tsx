@@ -4,19 +4,12 @@ import { useSession } from "next-auth/react"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-
-interface TripSummary {
-  id: string
-  name: string
-  destination: string
-  startDate: string
-  endDate: string
-}
+import type { TripListItem } from "@/types/sharing"
 
 export default function TripsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const [trips, setTrips] = useState<TripSummary[]>([])
+  const [trips, setTrips] = useState<TripListItem[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -78,14 +71,48 @@ export default function TripsPage() {
             <Link
               key={trip.id}
               href={`/trips/${trip.id}`}
-              className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md dark:border-zinc-700 dark:bg-zinc-800"
+              className={`rounded-xl border p-6 shadow-sm transition-shadow hover:shadow-md ${
+                trip.isShared && trip.role !== "owner"
+                  ? "border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900"
+                  : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800"
+              }`}
             >
-              <h2 className="text-lg font-semibold">{trip.name}</h2>
-              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{trip.destination}</p>
-              <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-500">
-                {new Date(trip.startDate).toLocaleDateString("he-IL")} -{" "}
-                {new Date(trip.endDate).toLocaleDateString("he-IL")}
-              </p>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <h2 className="truncate text-lg font-semibold">{trip.name}</h2>
+                  <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{trip.destination}</p>
+                  <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-500">
+                    {new Date(trip.startDate!).toLocaleDateString("he-IL")} -{" "}
+                    {new Date(trip.endDate!).toLocaleDateString("he-IL")}
+                  </p>
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                  {trip.role === "owner" && trip.isShared && (
+                    <span className="whitespace-nowrap rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
+                      משותף
+                    </span>
+                  )}
+                  {trip.role !== "owner" && (
+                    <span className="whitespace-nowrap rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700 dark:border-green-800 dark:bg-green-900/30 dark:text-green-300">
+                      שיתפו איתי
+                    </span>
+                  )}
+                  {trip.role === "owner" && trip.members.length > 0 && (
+                    <div className="flex">
+                      {trip.members.slice(0, 4).map((m, i) => (
+                        <div
+                          key={i}
+                          className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-indigo-500 text-[10px] font-bold text-white dark:border-zinc-800"
+                          style={{ marginRight: i > 0 ? "-6px" : "0", zIndex: trip.members.length - i }}
+                          title={m.name ?? ""}
+                        >
+                          {m.name?.[0]?.toUpperCase() ?? "?"}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </Link>
           ))}
         </div>
