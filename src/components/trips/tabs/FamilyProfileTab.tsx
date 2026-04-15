@@ -16,10 +16,39 @@ interface FamilyProfileData {
   attractionTypes: string[]
   foodPreferences: string[]
   noLayovers: boolean
+  preferredFlightStart: string | null
+  preferredFlightEnd: string | null
   pace: string
+  preFlightArrivalMinutes: number
+  carPickupDurationMinutes: number
+  carReturnDurationMinutes: number
   members: FamilyMember[]
   additionalContext: string | null
 }
+
+const ATTRACTION_TYPES = [
+  "טבע",
+  "מוזיאונים",
+  "פארקי שעשועים",
+  "חופים",
+  "פארקי מים",
+  "חוות",
+  "אטרקציות היסטוריות",
+]
+
+const FOOD_PREFERENCES = [
+  "כשר",
+  "צמחוני",
+  "טבעוני",
+  "ללא גלוטן",
+  "ללא אלרגיה לאגוזים",
+]
+
+const PACE_OPTIONS = [
+  { value: "relaxed", label: "רגוע" },
+  { value: "moderate", label: "בינוני" },
+  { value: "intensive", label: "אינטנסיבי" },
+]
 
 const ROLE_LABELS: Record<string, string> = {
   parent: "הורה",
@@ -321,6 +350,188 @@ function AdditionalContextEditor({
   )
 }
 
+// ─── Preferences editor ──────────────────────────────────────────────────────
+
+function PreferencesEditor({
+  tripId,
+  profile,
+  canEdit,
+}: {
+  tripId: string
+  profile: FamilyProfileData
+  canEdit: boolean
+}) {
+  const [attractionTypes, setAttractionTypes] = useState(profile.attractionTypes)
+  const [foodPreferences, setFoodPreferences] = useState(profile.foodPreferences)
+  const [noLayovers, setNoLayovers] = useState(profile.noLayovers)
+  const [preferredFlightStart, setPreferredFlightStart] = useState(profile.preferredFlightStart ?? "")
+  const [preferredFlightEnd, setPreferredFlightEnd] = useState(profile.preferredFlightEnd ?? "")
+  const [pace, setPace] = useState(profile.pace)
+  const [preFlightArrivalMinutes, setPreFlightArrivalMinutes] = useState(profile.preFlightArrivalMinutes)
+  const [carPickupDurationMinutes, setCarPickupDurationMinutes] = useState(profile.carPickupDurationMinutes)
+  const [carReturnDurationMinutes, setCarReturnDurationMinutes] = useState(profile.carReturnDurationMinutes)
+  const [loading, setLoading] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const toggleChip = (value: string, list: string[], setList: (v: string[]) => void) => {
+    setList(list.includes(value) ? list.filter((v) => v !== value) : [...list, value])
+    setSaved(false)
+  }
+
+  async function handleSave() {
+    setLoading(true)
+    setSaved(false)
+    try {
+      const res = await fetch(`/api/trips/${tripId}/profile`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          attractionTypes,
+          foodPreferences,
+          noLayovers,
+          preferredFlightStart: preferredFlightStart || null,
+          preferredFlightEnd: preferredFlightEnd || null,
+          pace,
+          preFlightArrivalMinutes,
+          carPickupDurationMinutes,
+          carReturnDurationMinutes,
+        }),
+      })
+      if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 3000) }
+    } finally { setLoading(false) }
+  }
+
+  if (!canEdit) {
+    return (
+      <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+        <h3 className="mb-3 font-medium">העדפות טיול</h3>
+        <div className="grid grid-cols-2 gap-2 text-sm">
+          <div><span className="text-zinc-500">קצב: </span>{PACE_OPTIONS.find(p => p.value === pace)?.label ?? pace}</div>
+          <div><span className="text-zinc-500">ללא עצירות: </span>{noLayovers ? "כן" : "לא"}</div>
+          {attractionTypes.length > 0 && (
+            <div className="col-span-2"><span className="text-zinc-500">אטרקציות: </span>{attractionTypes.join(", ")}</div>
+          )}
+          {foodPreferences.length > 0 && (
+            <div className="col-span-2"><span className="text-zinc-500">העדפות אוכל: </span>{foodPreferences.join(", ")}</div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+      <h3 className="mb-4 font-medium">העדפות טיול</h3>
+      <div className="flex flex-col gap-5">
+
+        {/* Attraction types */}
+        <div>
+          <label className="mb-2 block text-sm font-semibold">סוגי אטרקציות</label>
+          <div className="flex flex-wrap gap-2">
+            {ATTRACTION_TYPES.map((type) => (
+              <button key={type} type="button"
+                onClick={() => toggleChip(type, attractionTypes, setAttractionTypes)}
+                className={`rounded-full px-3 py-1.5 text-sm transition-colors ${
+                  attractionTypes.includes(type)
+                    ? "bg-emerald-600 text-white"
+                    : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600"
+                }`}>
+                {type}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Food preferences */}
+        <div>
+          <label className="mb-2 block text-sm font-semibold">העדפות אוכל</label>
+          <div className="flex flex-wrap gap-2">
+            {FOOD_PREFERENCES.map((pref) => (
+              <button key={pref} type="button"
+                onClick={() => toggleChip(pref, foodPreferences, setFoodPreferences)}
+                className={`rounded-full px-3 py-1.5 text-sm transition-colors ${
+                  foodPreferences.includes(pref)
+                    ? "bg-emerald-600 text-white"
+                    : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600"
+                }`}>
+                {pref}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Flight constraints */}
+        <div>
+          <label className="mb-2 block text-sm font-semibold">מגבלות טיסה</label>
+          <div className="flex flex-col gap-3">
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={noLayovers}
+                onChange={(e) => { setNoLayovers(e.target.checked); setSaved(false) }}
+                className="h-4 w-4 rounded border-zinc-300" />
+              <span className="text-sm">ללא עצירות</span>
+            </label>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm text-zinc-500">שעת יציאה מועדפת:</span>
+              <input type="time" value={preferredFlightStart}
+                onChange={(e) => { setPreferredFlightStart(e.target.value); setSaved(false) }}
+                className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-700" />
+              <span className="text-sm text-zinc-500">עד</span>
+              <input type="time" value={preferredFlightEnd}
+                onChange={(e) => { setPreferredFlightEnd(e.target.value); setSaved(false) }}
+                className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-700" />
+            </div>
+          </div>
+        </div>
+
+        {/* Logistics times */}
+        <div>
+          <label className="mb-2 block text-sm font-semibold">זמני לוגיסטיקה</label>
+          <div className="flex flex-col gap-3">
+            {[
+              { label: "הגעה לשדה תעופה לפני טיסה:", value: preFlightArrivalMinutes, set: setPreFlightArrivalMinutes, min: 30, max: 360, step: 30 },
+              { label: "זמן איסוף רכב שכור:", value: carPickupDurationMinutes, set: setCarPickupDurationMinutes, min: 15, max: 240, step: 15 },
+              { label: "זמן החזרת רכב שכור:", value: carReturnDurationMinutes, set: setCarReturnDurationMinutes, min: 15, max: 180, step: 15 },
+            ].map(({ label, value, set, min, max, step }) => (
+              <div key={label} className="flex items-center gap-3">
+                <span className="w-48 text-sm text-zinc-500">{label}</span>
+                <input type="number" min={min} max={max} step={step} value={value}
+                  onChange={(e) => { set(Number(e.target.value)); setSaved(false) }}
+                  className="w-20 rounded-lg border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-700" />
+                <span className="text-sm text-zinc-500">דקות</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Pace */}
+        <div>
+          <label className="mb-2 block text-sm font-semibold">קצב טיול</label>
+          <div className="flex gap-4">
+            {PACE_OPTIONS.map((option) => (
+              <label key={option.value} className="flex items-center gap-2">
+                <input type="radio" name={`pace-${tripId}`} value={option.value}
+                  checked={pace === option.value}
+                  onChange={(e) => { setPace(e.target.value); setSaved(false) }}
+                  className="h-4 w-4 border-zinc-300" />
+                <span className="text-sm">{option.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Save */}
+        <div className="flex items-center gap-3">
+          <button onClick={handleSave} disabled={loading}
+            className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50">
+            {loading ? "שומר..." : "שמור העדפות"}
+          </button>
+          {saved && <span className="text-sm text-emerald-600 dark:text-emerald-400">נשמר בהצלחה ✓</span>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main tab component ───────────────────────────────────────────────────────
 
 export function FamilyProfileTab({ tripId, role }: { tripId: string; role: TripRole }) {
@@ -435,27 +646,8 @@ export function FamilyProfileTab({ tripId, role }: { tripId: string; role: TripR
         canEdit={canEdit}
       />
 
-      {/* Preferences summary (read-only) */}
-      <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
-        <h3 className="mb-3 font-medium">העדפות טיול</h3>
-        <div className="grid grid-cols-2 gap-2 text-sm">
-          <div><span className="text-zinc-500">קצב: </span>{profile.pace}</div>
-          <div><span className="text-zinc-500">ללא עצירות: </span>{profile.noLayovers ? "כן" : "לא"}</div>
-          {profile.attractionTypes.length > 0 && (
-            <div className="col-span-2"><span className="text-zinc-500">אטרקציות: </span>{profile.attractionTypes.join(", ")}</div>
-          )}
-          {profile.foodPreferences.length > 0 && (
-            <div className="col-span-2"><span className="text-zinc-500">העדפות אוכל: </span>{profile.foodPreferences.join(", ")}</div>
-          )}
-        </div>
-        {canEdit && (
-          <p className="mt-3 text-xs text-zinc-400">
-            לעדכון העדפות הטיול, ערוך את{" "}
-            <a href="/family" className="underline hover:text-zinc-600">פרופיל המשפחה הברירת המחדל</a>
-            {" "}ואז צור פרופיל חדש לטיול זה.
-          </p>
-        )}
-      </div>
+      {/* Preferences */}
+      <PreferencesEditor tripId={tripId} profile={profile} canEdit={canEdit} />
     </div>
   )
 }
