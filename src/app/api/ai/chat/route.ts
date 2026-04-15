@@ -170,11 +170,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
 
-  // Fetch family profile
-  const familyProfile = await prisma.familyProfile.findUnique({
-    where: { userId: session.user.id },
-    include: { members: true },
-  })
+  // Fetch family profile: prefer trip-specific profile, fall back to user's default
+  const [tripFamilyProfile, defaultFamilyProfile] = await Promise.all([
+    trip.familyProfileId
+      ? prisma.familyProfile.findUnique({
+          where: { id: trip.familyProfileId },
+          include: { members: true },
+        })
+      : null,
+    prisma.familyProfile.findUnique({
+      where: { userId: session.user.id },
+      include: { members: true },
+    }),
+  ])
+  const familyProfile = tripFamilyProfile ?? defaultFamilyProfile
 
   // Build context
   const now = new Date()
@@ -192,6 +201,7 @@ export async function POST(request: Request) {
       ),
       role: m.role,
     })),
+    additionalContext: familyProfile?.additionalContext ?? undefined,
     savedAttractions: trip.attractions.map((a) => ({
       id: a.id,
       name: a.name,

@@ -58,6 +58,7 @@ export async function POST(
         preFlightArrivalMinutes: defaultProfile.preFlightArrivalMinutes,
         carPickupDurationMinutes: defaultProfile.carPickupDurationMinutes,
         carReturnDurationMinutes: defaultProfile.carReturnDurationMinutes,
+        additionalContext: defaultProfile.additionalContext,
         members: {
           create: defaultProfile.members.map((m) => ({
             name: m.name,
@@ -112,6 +113,7 @@ export async function PUT(
     preFlightArrivalMinutes,
     carPickupDurationMinutes,
     carReturnDurationMinutes,
+    additionalContext,
   } = body
 
   const profile = await prisma.familyProfile.update({
@@ -126,6 +128,7 @@ export async function PUT(
       ...(preFlightArrivalMinutes !== undefined && { preFlightArrivalMinutes }),
       ...(carPickupDurationMinutes !== undefined && { carPickupDurationMinutes }),
       ...(carReturnDurationMinutes !== undefined && { carReturnDurationMinutes }),
+      ...(additionalContext !== undefined && { additionalContext: additionalContext || null }),
     },
     include: { members: true },
   })

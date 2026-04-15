@@ -38,9 +38,9 @@ model Session {
 }
 
 model User {
-  id            String    @id @default(cuid())
+  id            String         @id @default(cuid())
   name          String?
-  email         String?   @unique
+  email         String?        @unique
   emailVerified DateTime?
   image         String?
   accounts      Account[]
@@ -48,7 +48,7 @@ model User {
   familyProfile FamilyProfile?
   trips         Trip[]
   sharedTrips   TripShare[]
-  sentInvites   TripInvite[]  @relation("SentInvites")
+  sentInvites   TripInvite[]   @relation("SentInvites")
 }
 
 model VerificationToken {
@@ -66,17 +66,19 @@ model FamilyProfile {
   user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
   trip   Trip?
 
-  attractionTypes          String[]  @default([])
-  foodPreferences          String[]  @default([])
-  noLayovers               Boolean   @default(true)
+  attractionTypes          String[] @default([])
+  foodPreferences          String[] @default([])
+  noLayovers               Boolean  @default(true)
   preferredFlightStart     String?
   preferredFlightEnd       String?
-  pace                     String    @default("moderate")
-  preFlightArrivalMinutes  Int       @default(180)
-  carPickupDurationMinutes Int       @default(120)
-  carReturnDurationMinutes Int       @default(60)
+  pace                     String   @default("moderate")
+  preFlightArrivalMinutes  Int      @default(180)
+  carPickupDurationMinutes Int      @default(120)
+  carReturnDurationMinutes Int      @default(60)
 
   members FamilyMember[]
+
+  additionalContext String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -107,19 +109,19 @@ model Trip {
   startDate   DateTime
   endDate     DateTime
 
-  shareToken  String? @unique
+  shareToken String? @unique
 
-  accommodation Json?
-  flights Json?
-  carRental Json?
+  accommodation   Json?
+  flights         Json?
+  carRental       Json?
   destinationInfo Json?
 
-  attractions  Attraction[]
-  restaurants  Restaurant[]
-  groceryStores GroceryStore[]
-  dayPlans     DayPlan[]
-  packingItems PackingItem[]
-  shoppingItems ShoppingItem[]
+  attractions     Attraction[]
+  restaurants     Restaurant[]
+  groceryStores   GroceryStore[]
+  dayPlans        DayPlan[]
+  packingItems    PackingItem[]
+  shoppingItems   ShoppingItem[]
   shares          TripShare[]
   familyProfileId String?        @unique
   familyProfile   FamilyProfile? @relation(fields: [familyProfileId], references: [id])
@@ -164,16 +166,16 @@ model Attraction {
 
   googlePlaceId String?
   name          String
-  description   String?  @db.Text
+  description   String? @db.Text
   address       String?
   lat           Float?
   lng           Float?
   phone         String?
   website       String?
 
-  openingHours  Json?
-  prices        Json?
-  photos        String[] @default([])
+  openingHours Json?
+  prices       Json?
+  photos       String[] @default([])
 
   ratingGoogle      Float?
   ratingTripadvisor Float?
@@ -185,8 +187,8 @@ model Attraction {
   bookingRequired    Boolean @default(false)
 
   kidFriendlyScore     Int?
-  kidFriendlyReasoning String?  @db.Text
-  specialNotes         String?  @db.Text
+  kidFriendlyReasoning String? @db.Text
+  specialNotes         String? @db.Text
 
   status String @default("maybe")
 
@@ -222,7 +224,7 @@ model Restaurant {
   ratingTripadvisor Float?
 
   travelTimeMinutes Int?
-  kidFriendly       Boolean @default(false)
+  kidFriendly       Boolean  @default(false)
   photos            String[] @default([])
 
   status String @default("maybe")
@@ -260,7 +262,7 @@ model GroceryStore {
   travelTimeMinutes Int?
   travelDistanceKm  Float?
 
-  status          String   @default("maybe")
+  status          String    @default("maybe")
   dataLastUpdated DateTime?
   dataSource      String?
 
@@ -296,23 +298,27 @@ model Activity {
   dayPlanId String
   dayPlan   DayPlan @relation(fields: [dayPlanId], references: [id], onDelete: Cascade)
 
-  sortOrder  Int
-  timeStart  String?
-  timeEnd    String?
-  type       String
-  notes      String? @db.Text
+  sortOrder Int
+  timeStart String?
+  timeEnd   String?
+  type      String
+  notes     String? @db.Text
 
-  attractionId String?
-  attraction   Attraction? @relation(fields: [attractionId], references: [id])
-  restaurantId String?
-  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id])
+  attractionId   String?
+  attraction     Attraction?   @relation(fields: [attractionId], references: [id])
+  restaurantId   String?
+  restaurant     Restaurant?   @relation(fields: [restaurantId], references: [id])
   groceryStoreId String?
   groceryStore   GroceryStore? @relation(fields: [groceryStoreId], references: [id])
 
-  /** Driving legs: origin/destination refs + server-resolved coords, labels, driveMinutes */
+  /**
+   * Driving legs: origin/destination refs + server-resolved coords, labels, driveMinutes
+   */
   travelLeg Json?
 
-  /** Index into trip `accommodation` JSON array for `rest` activities */
+  /**
+   * Index into trip `accommodation` JSON array for `rest` activities
+   */
   restAccommodationIndex Int?
 
   travelTimeToNextMinutes Int?
@@ -329,9 +335,9 @@ model PackingItem {
   tripId String
   trip   Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
-  category String
-  item     String
-  checked  Boolean @default(false)
+  category  String
+  item      String
+  checked   Boolean @default(false)
   forMember String?
 
   sortOrder Int @default(0)

@@ -31,7 +31,7 @@ export async function PUT(request: Request) {
   }
 
   const body = await request.json()
-  const { attractionTypes, foodPreferences, noLayovers, preferredFlightStart, preferredFlightEnd, pace, preFlightArrivalMinutes, carPickupDurationMinutes, carReturnDurationMinutes } = body
+  const { attractionTypes, foodPreferences, noLayovers, preferredFlightStart, preferredFlightEnd, pace, preFlightArrivalMinutes, carPickupDurationMinutes, carReturnDurationMinutes, additionalContext } = body
 
   // Validate logistics duration fields
   if (preFlightArrivalMinutes !== undefined && (typeof preFlightArrivalMinutes !== "number" || preFlightArrivalMinutes < 30 || preFlightArrivalMinutes > 360)) {
@@ -56,6 +56,7 @@ export async function PUT(request: Request) {
       ...(preFlightArrivalMinutes !== undefined && { preFlightArrivalMinutes }),
       ...(carPickupDurationMinutes !== undefined && { carPickupDurationMinutes }),
       ...(carReturnDurationMinutes !== undefined && { carReturnDurationMinutes }),
+      ...(additionalContext !== undefined && { additionalContext: additionalContext || null }),
     },
     create: {
       userId: session.user.id,
@@ -68,6 +69,7 @@ export async function PUT(request: Request) {
       ...(preFlightArrivalMinutes !== undefined && { preFlightArrivalMinutes }),
       ...(carPickupDurationMinutes !== undefined && { carPickupDurationMinutes }),
       ...(carReturnDurationMinutes !== undefined && { carReturnDurationMinutes }),
+      ...(additionalContext !== undefined && { additionalContext: additionalContext || null }),
     },
     include: { members: true },
   })

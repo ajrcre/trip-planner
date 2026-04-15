@@ -241,6 +241,7 @@ export async function chatWithFunctions(
         name: string
       }>
     }[]
+    additionalContext?: string
   },
   history: GeminiChatMessage[],
   userMessage: string
@@ -313,6 +314,7 @@ export function buildChatContext(context: {
       name: string
     }>
   }[]
+  additionalContext?: string
 }): string {
   const lines: string[] = []
 
@@ -359,6 +361,11 @@ export function buildChatContext(context: {
         `• ${day.date} [dayPlanId: ${day.dayPlanId}]: ${acts || "ריק"}`
       )
     }
+  }
+
+  if (context.additionalContext?.trim()) {
+    lines.push("\nמידע נוסף:")
+    lines.push(context.additionalContext.trim())
   }
 
   return lines.join("\n")
