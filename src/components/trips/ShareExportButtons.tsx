@@ -3,6 +3,28 @@
 import { useState, useEffect, useRef } from "react"
 import type { TripRole, TripMember, PendingInvite, TripMembersResponse } from "@/types/sharing"
 
+function Avatar({ name, image }: { name: string | null; image: string | null }) {
+  const [broken, setBroken] = useState(false)
+  const initial = name?.[0]?.toUpperCase() ?? "?"
+
+  if (image && !broken) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={image}
+        alt=""
+        className="h-6 w-6 rounded-full object-cover"
+        onError={() => setBroken(true)}
+      />
+    )
+  }
+  return (
+    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-500 text-[10px] font-bold text-white">
+      {initial}
+    </div>
+  )
+}
+
 interface OwnerInfo {
   id: string
   name: string | null
@@ -261,14 +283,7 @@ export function ShareExportButtons({
           {owner && (
             <div className="mb-1 flex items-center justify-between rounded-lg bg-zinc-50 px-3 py-2 dark:bg-zinc-700/50">
               <div className="flex items-center gap-2">
-                {owner.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={owner.image} alt="" className="h-6 w-6 rounded-full" />
-                ) : (
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-500 text-[10px] font-bold text-white">
-                    {owner.name?.[0]?.toUpperCase() ?? "?"}
-                  </div>
-                )}
+                <Avatar name={owner.name} image={owner.image} />
                 <span className="text-sm font-medium">{owner.name ?? owner.email}</span>
               </div>
               <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
@@ -281,14 +296,7 @@ export function ShareExportButtons({
           {members.map((m) => (
             <div key={m.userId} className="mb-1 flex items-center justify-between rounded-lg bg-zinc-50 px-3 py-2 dark:bg-zinc-700/50">
               <div className="flex items-center gap-2">
-                {m.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={m.image} alt="" className="h-6 w-6 rounded-full" />
-                ) : (
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-500 text-[10px] font-bold text-white">
-                    {m.name?.[0]?.toUpperCase() ?? "?"}
-                  </div>
-                )}
+                <Avatar name={m.name} image={m.image} />
                 <span className="text-sm">{m.name ?? m.email}</span>
               </div>
               <div className="flex items-center gap-1">
