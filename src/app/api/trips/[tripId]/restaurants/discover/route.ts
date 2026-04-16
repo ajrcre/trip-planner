@@ -70,7 +70,7 @@ export async function POST(
 
     // Calculate travel times from accommodation in parallel
     const routePromises = places.map(async (place) => {
-      if (place.lat == null || place.lng == null) return place
+      if (place.lat == null || place.lng == null || location == null) return place
       try {
         const route = await calculateRoute(
           { lat: location.lat, lng: location.lng },
