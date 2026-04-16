@@ -69,7 +69,7 @@ export async function geocodeAddress(
 
 export async function searchPlaces(
   query: string,
-  location: { lat: number; lng: number },
+  location: { lat: number; lng: number } | null,
   radius: number,
   type?: string
 ): Promise<PlaceResult[]> {
@@ -78,15 +78,17 @@ export async function searchPlaces(
 
   const body: Record<string, unknown> = {
     textQuery: type ? `${type} ${query}` : query,
-    locationBias: {
-      circle: {
-        center: {
-          latitude: location.lat,
-          longitude: location.lng,
+    ...(location && {
+      locationBias: {
+        circle: {
+          center: {
+            latitude: location.lat,
+            longitude: location.lng,
+          },
+          radius,
         },
-        radius,
       },
-    },
+    }),
   }
 
   const response = await fetch(
