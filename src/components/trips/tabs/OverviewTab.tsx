@@ -27,6 +27,27 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
   )
 }
 
+function LocationLinks({ address }: { address: string }) {
+  const encoded = encodeURIComponent(address)
+  const gmapsUrl = `https://www.google.com/maps/search/?api=1&query=${encoded}`
+  const wazeUrl = `https://waze.com/ul?q=${encoded}&navigate=yes`
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-3 text-sm">
+        <a href={gmapsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-blue-600 hover:underline dark:text-blue-400">
+          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+          Google Maps
+        </a>
+        <a href={wazeUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-blue-600 hover:underline dark:text-blue-400">
+          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+          Waze
+        </a>
+      </div>
+      <p className="text-xs text-amber-600 dark:text-amber-400">אנא פתח את הקישור ובדוק שהמיקום נכון על המפה</p>
+    </div>
+  )
+}
+
 export function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () => void }) {
   const accommodations = normalizeAccommodations(trip.accommodation)
   const flightsData = normalizeFlights(trip.flights)
@@ -211,6 +232,7 @@ export function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () =>
                 <div className="flex flex-col gap-2">
                   {accommodations.length === 1 && <InfoRow label="שם" value={acc.name} />}
                   <InfoRow label="כתובת" value={acc.address} />
+                  {(acc.address || acc.name) && <LocationLinks address={acc.address || acc.name || ""} />}
                   <InfoRow label="אתר" value={acc.website ?? undefined} />
                   <InfoRow label="צ'ק-אין" value={acc.checkIn ? formatUiDateTime(acc.checkIn) : undefined} />
                   <InfoRow label="צ'ק-אאוט" value={acc.checkOut ? formatUiDateTime(acc.checkOut) : undefined} />
@@ -261,7 +283,11 @@ export function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () =>
                 <div className="flex flex-col gap-2">
                   <InfoRow label="חברה" value={rental.company} />
                   <InfoRow label="מיקום איסוף" value={rental.pickupLocation} />
+                  {rental.pickupLocation && <LocationLinks address={rental.pickupLocation} />}
                   <InfoRow label="מיקום החזרה" value={rental.returnLocation} />
+                  {rental.returnLocation && rental.returnLocation !== rental.pickupLocation && (
+                    <LocationLinks address={rental.returnLocation} />
+                  )}
                   <InfoRow label="פרטים נוספים" value={rental.additionalDetails} />
                 </div>
               </div>
