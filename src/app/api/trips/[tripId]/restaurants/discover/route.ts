@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { searchPlaces, calculateRoute } from "@/lib/google-maps"
+import { searchPlaces, calculateRoute, geocodeAddress } from "@/lib/google-maps"
 import { normalizeAccommodations } from "@/lib/accommodations"
 import { requireTripAccess } from "@/lib/trip-access"
 import { mapCuisineType } from "@/lib/cuisine-types"
@@ -26,15 +26,19 @@ export async function POST(
   // Get accommodation coordinates for location bias
   const accommodations = normalizeAccommodations(trip.accommodation)
 
-  let accommodationWithCoords = accommodations.find((a) => a.coordinates)
+  let selectedAccommodation = accommodations.find((a) => a.coordinates)
   if (accommodationId) {
     const byId = accommodations.find(
       (a, i) => `${i}` === accommodationId || a.name === accommodationId
     )
-    if (byId?.coordinates) accommodationWithCoords = byId
+    if (byId) selectedAccommodation = byId
   }
 
-  const location = accommodationWithCoords?.coordinates ?? null
+  let location = selectedAccommodation?.coordinates ?? null
+  if (!location && selectedAccommodation) {
+    const addressStr = selectedAccommodation.address || selectedAccommodation.name
+    if (addressStr) location = await geocodeAddress(addressStr)
+  }
   const searchRadius = radius ?? 50000
 
   // Build search query
