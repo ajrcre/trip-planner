@@ -37,8 +37,32 @@ export async function GET(
     },
   })
 
+  // Lazy-geocode accommodations that have an address but no coordinates
+  const accommodations = normalizeAccommodations(fullTrip!.accommodation)
+  const needsGeocoding = accommodations.some((a) => a.address && !a.coordinates)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let enrichedAccommodation: any = fullTrip!.accommodation
+  if (needsGeocoding) {
+    const geocoded = await Promise.all(
+      accommodations.map(async (acc) => {
+        if (acc.address && !acc.coordinates) {
+          const coords = await geocodeAddress(acc.address)
+          if (coords) return { ...acc, coordinates: coords }
+        }
+        return acc
+      })
+    )
+    enrichedAccommodation = geocoded
+    // Persist in background so future loads are instant
+    prisma.trip.update({
+      where: { id: tripId },
+      data: { accommodation: JSON.parse(JSON.stringify(geocoded)) },
+    }).catch(() => {})
+  }
+
   const normalized = {
     ...fullTrip,
+    accommodation: enrichedAccommodation,
     flights: normalizeFlights(fullTrip!.flights),
     carRental: normalizeCarRentals(fullTrip!.carRental),
     role,
