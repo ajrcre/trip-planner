@@ -16,6 +16,7 @@ import {
 import { formatUiDateTime } from "@/lib/format-time"
 
 import { parseDayHours, DAY_NAMES_EN, DAY_NAMES_HE, formatAmPmTimesInText } from "@/lib/time-parsing"
+import { alternativePlanLabel } from "@/lib/activity-alternatives"
 
 // A4 page: 11906 DXA wide, 1440 DXA margins each side = 9026 DXA content width
 const CONTENT_WIDTH = 9026
@@ -132,6 +133,14 @@ interface TripData {
       attraction?: PlaceInfo | null
       restaurant?: PlaceInfo | null
       groceryStore?: PlaceInfo | null
+      alternatives?: Array<{
+        id?: string
+        priority: number
+        notes?: string | null
+        attraction?: PlaceInfo | null
+        restaurant?: PlaceInfo | null
+        groceryStore?: PlaceInfo | null
+      }> | null
     }>
   }>
   packingItems: Array<{
@@ -439,6 +448,58 @@ function buildScheduleSection(
               ],
             })
           )
+        }
+      }
+
+      // Backup alternatives (Plan B, C, D...)
+      if (activity.alternatives && activity.alternatives.length > 0) {
+        for (const alt of activity.alternatives) {
+          const altPlace = alt.attraction ?? alt.restaurant ?? alt.groceryStore
+          if (!altPlace) continue
+          const altLabel = alternativePlanLabel(alt.priority)
+
+          paragraphs.push(
+            new Paragraph({
+              bidirectional: true,
+              alignment: AlignmentType.RIGHT,
+              indent: { right: 560 },
+              spacing: { before: 60 },
+              children: [
+                new TextRun({
+                  text: `${altLabel}: `,
+                  bold: true,
+                  rightToLeft: true,
+                  size: 17,
+                  color: "7C3AED",
+                }),
+                new TextRun({
+                  text: altPlace.name,
+                  rightToLeft: true,
+                  size: 17,
+                  color: "444444",
+                }),
+              ],
+            })
+          )
+
+          if (alt.notes) {
+            paragraphs.push(
+              new Paragraph({
+                bidirectional: true,
+                alignment: AlignmentType.RIGHT,
+                indent: { right: 760 },
+                children: [
+                  new TextRun({
+                    text: alt.notes,
+                    rightToLeft: true,
+                    italics: true,
+                    size: 16,
+                    color: "777777",
+                  }),
+                ],
+              })
+            )
+          }
         }
       }
 

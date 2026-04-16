@@ -195,7 +195,8 @@ model Attraction {
   dataLastUpdated DateTime?
   dataSource      String?
 
-  activities Activity[]
+  activities            Activity[]
+  activityAlternatives  ActivityAlternative[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -232,7 +233,8 @@ model Restaurant {
   dataLastUpdated DateTime?
   dataSource      String?
 
-  activities Activity[]
+  activities            Activity[]
+  activityAlternatives  ActivityAlternative[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -266,7 +268,8 @@ model GroceryStore {
   dataLastUpdated DateTime?
   dataSource      String?
 
-  activities Activity[]
+  activities            Activity[]
+  activityAlternatives  ActivityAlternative[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -323,10 +326,34 @@ model Activity {
 
   travelTimeToNextMinutes Int?
 
+  alternatives ActivityAlternative[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([dayPlanId])
+}
+
+// === Activity Alternatives ===
+model ActivityAlternative {
+  id         String   @id @default(cuid())
+  activityId String
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  priority Int     // 0 = Plan B, 1 = Plan C, 2 = Plan D ...
+  notes    String? @db.Text
+
+  attractionId   String?
+  attraction     Attraction?   @relation(fields: [attractionId], references: [id])
+  restaurantId   String?
+  restaurant     Restaurant?   @relation(fields: [restaurantId], references: [id])
+  groceryStoreId String?
+  groceryStore   GroceryStore? @relation(fields: [groceryStoreId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([activityId])
 }
 
 // === Lists ===

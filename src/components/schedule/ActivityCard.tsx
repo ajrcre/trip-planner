@@ -7,6 +7,32 @@ import { detectTimeConflict } from "@/lib/time-parsing"
 import type { TravelEndpointRef, TravelLegStored } from "@/types/travel-leg"
 import { decodeTravelEndpoint, encodeTravelEndpoint } from "@/lib/travel-endpoint-codec"
 import { OpeningHoursSection } from "./OpeningHoursSection"
+import { alternativePlanLabel, supportsAlternatives } from "@/lib/activity-alternatives"
+
+export interface PlaceData {
+  id: string
+  name: string
+  address: string | null
+  phone: string | null
+  website: string | null
+  googlePlaceId: string | null
+  openingHours: unknown
+  lat: number | null
+  lng: number | null
+}
+
+export interface ActivityAlternativeData {
+  id: string
+  priority: number
+  notes: string | null
+  attractionId: string | null
+  restaurantId: string | null
+  groceryStoreId: string | null
+  attraction: PlaceData | null
+  restaurant: PlaceData | null
+  groceryStore: PlaceData | null
+  drivingTimesFromLodging?: { accommodationName: string; minutes: number }[]
+}
 
 export interface ActivityData {
   id: string
@@ -20,41 +46,12 @@ export interface ActivityData {
   groceryStoreId: string | null
   restAccommodationIndex?: number | null
   travelTimeToNextMinutes: number | null
-  attraction: {
-    id: string
-    name: string
-    address: string | null
-    phone: string | null
-    website: string | null
-    googlePlaceId: string | null
-    openingHours: unknown
-    lat: number | null
-    lng: number | null
-  } | null
-  restaurant: {
-    id: string
-    name: string
-    address: string | null
-    phone: string | null
-    website: string | null
-    googlePlaceId: string | null
-    openingHours: unknown
-    lat: number | null
-    lng: number | null
-  } | null
-  groceryStore: {
-    id: string
-    name: string
-    address: string | null
-    phone: string | null
-    website: string | null
-    googlePlaceId: string | null
-    openingHours: unknown
-    lat: number | null
-    lng: number | null
-  } | null
+  attraction: PlaceData | null
+  restaurant: PlaceData | null
+  groceryStore: PlaceData | null
   drivingTimesFromLodging?: { accommodationName: string; minutes: number }[]
   travelLeg?: TravelLegStored | null
+  alternatives?: ActivityAlternativeData[]
 }
 
 const typeConfig: Record<string, { icon: string; label: string }> = {
@@ -117,6 +114,10 @@ interface ActivityCardProps {
   restAccommodationChoices?: { index: number; name: string }[]
   /** The date of the schedule day (YYYY-MM-DD) for context-aware display (e.g. opening hours) */
   scheduleDate?: string
+  /** Available places for adding alternatives (same type as primary) */
+  alternativeOptions?: { id: string; name: string }[]
+  onRemoveAlternative?: (activityId: string, alternativeId: string) => Promise<void>
+  onAddAlternative?: (activityId: string, placeId: string, notes: string) => Promise<void>
 }
 
 export function ActivityCard({
@@ -128,6 +129,9 @@ export function ActivityCard({
   tripAccommodations,
   restAccommodationChoices,
   scheduleDate,
+  alternativeOptions = [],
+  onRemoveAlternative,
+  onAddAlternative,
 }: ActivityCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -138,6 +142,24 @@ export function ActivityCard({
   const [editTravelOrigin, setEditTravelOrigin] = useState("")
   const [editTravelDest, setEditTravelDest] = useState("")
   const [editRestAccommodationIdx, setEditRestAccommodationIdx] = useState("")
+
+  // Alternatives UI state
+  const [showAlternatives, setShowAlternatives] = useState(true)
+  const [openAltDetails, setOpenAltDetails] = useState<Set<string>>(new Set())
+  const [showAddAlt, setShowAddAlt] = useState(false)
+  const [addAltPlaceId, setAddAltPlaceId] = useState("")
+  const [addAltNotes, setAddAltNotes] = useState("")
+  const [isAddingAlt, setIsAddingAlt] = useState(false)
+  const [removingAltId, setRemovingAltId] = useState<string | null>(null)
+
+  function toggleAltDetails(altId: string) {
+    setOpenAltDetails((prev) => {
+      const next = new Set(prev)
+      if (next.has(altId)) next.delete(altId)
+      else next.add(altId)
+      return next
+    })
+  }
 
   const config = typeConfig[activity.type] ?? typeConfig.custom
 
@@ -174,6 +196,9 @@ export function ActivityCard({
       config.label
     )
   })()
+
+  const alternatives = activity.alternatives ?? []
+  const canHaveAlternatives = supportsAlternatives(activity.type)
 
   async function handleSave() {
     if (isSaving) return
@@ -262,6 +287,31 @@ export function ActivityCard({
     )
     setIsEditing(true)
   }
+
+  async function handleRemoveAlt(altId: string) {
+    if (!onRemoveAlternative) return
+    setRemovingAltId(altId)
+    try {
+      await onRemoveAlternative(activity.id, altId)
+    } finally {
+      setRemovingAltId(null)
+    }
+  }
+
+  async function handleAddAlt() {
+    if (!onAddAlternative || !addAltPlaceId) return
+    setIsAddingAlt(true)
+    try {
+      await onAddAlternative(activity.id, addAltPlaceId, addAltNotes)
+      setAddAltPlaceId("")
+      setAddAltNotes("")
+      setShowAddAlt(false)
+    } finally {
+      setIsAddingAlt(false)
+    }
+  }
+
+  const nextAltLabel = alternativePlanLabel(alternatives.length)
 
   return (
     <div className="group relative rounded-lg border border-zinc-200 bg-white p-3 shadow-sm transition-shadow hover:shadow-md dark:border-zinc-700 dark:bg-zinc-800">
@@ -364,6 +414,117 @@ export function ActivityCard({
               className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-700"
             />
           </div>
+
+          {/* Alternatives management — only in edit mode */}
+          {canHaveAlternatives && (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium text-violet-600 dark:text-violet-400">חלופות</span>
+              {alternatives.length > 0 && (
+                <div className="flex flex-col gap-1 border-r-2 border-violet-200 pr-2 dark:border-violet-700">
+                  {alternatives.map((alt) => {
+                    const altPlace = alt.attraction ?? alt.restaurant ?? alt.groceryStore
+                    if (!altPlace) return null
+                    const isRemoving = removingAltId === alt.id
+                    return (
+                      <div
+                        key={alt.id}
+                        className="flex items-center justify-between gap-2 rounded bg-violet-50 px-2 py-1.5 dark:bg-violet-900/20"
+                      >
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[10px] font-semibold text-violet-500 dark:text-violet-400">
+                            {alternativePlanLabel(alt.priority)}
+                          </span>
+                          <span className="text-xs font-medium text-zinc-700 dark:text-zinc-200">
+                            {altPlace.name}
+                          </span>
+                          {alt.notes && (
+                            <span className="text-[11px] text-zinc-400 dark:text-zinc-500">{alt.notes}</span>
+                          )}
+                        </div>
+                        {onRemoveAlternative && (
+                          <button
+                            onClick={() => handleRemoveAlt(alt.id)}
+                            disabled={isRemoving}
+                            className="shrink-0 rounded p-0.5 text-zinc-300 hover:bg-red-50 hover:text-red-400 disabled:opacity-50 dark:hover:bg-red-900/20"
+                            title="הסר חלופה"
+                          >
+                            {isRemoving ? (
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin">
+                                <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
+                              </svg>
+                            ) : (
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M18 6L6 18M6 6l12 12" />
+                              </svg>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Add alternative form */}
+              {onAddAlternative && !showAddAlt && (
+                <button
+                  onClick={() => setShowAddAlt(true)}
+                  className="flex items-center gap-1 text-[11px] text-violet-500 hover:text-violet-700 dark:text-violet-400"
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                  הוסף {nextAltLabel}
+                </button>
+              )}
+
+              {onAddAlternative && showAddAlt && (
+                <div className="flex flex-col gap-2 rounded border border-violet-200 bg-violet-50 p-2 dark:border-violet-700 dark:bg-violet-900/20">
+                  <span className="text-[10px] font-semibold text-violet-500 dark:text-violet-400">
+                    {nextAltLabel}
+                  </span>
+                  <select
+                    value={addAltPlaceId}
+                    onChange={(e) => setAddAltPlaceId(e.target.value)}
+                    className="rounded border border-zinc-300 px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-700"
+                  >
+                    <option value="">בחרו...</option>
+                    {alternativeOptions.map((opt) => (
+                      <option key={opt.id} value={opt.id}>{opt.name}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={addAltNotes}
+                    onChange={(e) => setAddAltNotes(e.target.value)}
+                    placeholder="הערות (אופציונלי)..."
+                    className="rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-700"
+                  />
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={handleAddAlt}
+                      disabled={isAddingAlt || !addAltPlaceId}
+                      className="inline-flex items-center gap-1 rounded bg-violet-600 px-2.5 py-1 text-[11px] text-white hover:bg-violet-700 disabled:opacity-60"
+                    >
+                      {isAddingAlt && (
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin">
+                          <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
+                        </svg>
+                      )}
+                      {isAddingAlt ? "שומר..." : "הוסף"}
+                    </button>
+                    <button
+                      onClick={() => { setShowAddAlt(false); setAddAltPlaceId(""); setAddAltNotes("") }}
+                      disabled={isAddingAlt}
+                      className="rounded border border-zinc-300 px-2.5 py-1 text-[11px] hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-600 dark:hover:bg-zinc-700"
+                    >
+                      ביטול
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="flex gap-2">
             <button
@@ -593,6 +754,148 @@ export function ActivityCard({
                         </a>
                       </div>
                     )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Backup alternatives (Plan B, C, D...) — view only, no add/remove controls */}
+            {canHaveAlternatives && alternatives.length > 0 && (
+              <div className="mt-2">
+                <button
+                  onClick={() => setShowAlternatives(!showAlternatives)}
+                  className="flex items-center gap-1 text-[11px] text-violet-600 hover:text-violet-700 dark:text-violet-400"
+                >
+                  <svg
+                    width="10"
+                    height="10"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    className={`transition-transform ${showAlternatives ? "rotate-90" : "rotate-0"}`}
+                  >
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
+                  {showAlternatives
+                    ? `הסתר חלופות (${alternatives.length})`
+                    : `הצג חלופות (${alternatives.length})`}
+                </button>
+
+                {showAlternatives && (
+                  <div className="mt-1.5 flex flex-col gap-2 border-r-2 border-violet-200 pr-2 dark:border-violet-700">
+                    {alternatives.map((alt) => {
+                      const altPlace = alt.attraction ?? alt.restaurant ?? alt.groceryStore
+                      if (!altPlace) return null
+                      const altDetailsOpen = openAltDetails.has(alt.id)
+                      const altHasDetails = !!(altPlace.address || altPlace.phone || altPlace.website || altPlace.openingHours || altPlace.googlePlaceId)
+                      return (
+                        <div
+                          key={alt.id}
+                          className="rounded bg-violet-50 px-2 py-1.5 dark:bg-violet-900/20"
+                        >
+                          <span className="text-[10px] font-semibold text-violet-500 dark:text-violet-400">
+                            {alternativePlanLabel(alt.priority)}
+                          </span>
+                          <div className="mt-0.5 text-xs font-medium text-zinc-700 dark:text-zinc-200">
+                            {altPlace.name}
+                          </div>
+                          {alt.notes && (
+                            <div className="mt-0.5 text-[11px] text-zinc-400 dark:text-zinc-500">{alt.notes}</div>
+                          )}
+                          {alt.drivingTimesFromLodging && alt.drivingTimesFromLodging.length > 0 && (
+                            <div className="mt-0.5 flex flex-wrap gap-1">
+                              {alt.drivingTimesFromLodging.map((dt, i) => (
+                                <span
+                                  key={i}
+                                  className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+                                  title={`נסיעה מ${dt.accommodationName}`}
+                                >
+                                  🏨→🚗 {dt.minutes} דק׳
+                                  {alt.drivingTimesFromLodging!.length > 1 && (
+                                    <span className="text-blue-400 dark:text-blue-500">
+                                      ({dt.accommodationName})
+                                    </span>
+                                  )}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {altHasDetails && (
+                            <div className="mt-1">
+                              <button
+                                onClick={() => toggleAltDetails(alt.id)}
+                                className="flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                              >
+                                <svg
+                                  width="10"
+                                  height="10"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  className={`transition-transform ${altDetailsOpen ? "rotate-90" : "rotate-0"}`}
+                                >
+                                  <path d="M9 18l6-6-6-6" />
+                                </svg>
+                                {altDetailsOpen ? "הסתר פרטים" : "הצג פרטים"}
+                              </button>
+
+                              {altDetailsOpen && (
+                                <div className="mt-1 flex flex-col gap-1.5 rounded-md bg-zinc-50 p-2 dark:bg-zinc-700/50">
+                                  {!!altPlace.openingHours && (
+                                    <OpeningHoursSection openingHours={altPlace.openingHours} scheduleDate={scheduleDate} />
+                                  )}
+                                  {!!altPlace.address && (
+                                    <div className="flex items-start gap-1.5">
+                                      <span className="text-xs">📍</span>
+                                      <span className="text-xs text-zinc-600 dark:text-zinc-300">{altPlace.address}</span>
+                                    </div>
+                                  )}
+                                  {!!altPlace.phone && (
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs">📞</span>
+                                      <a
+                                        href={`tel:${altPlace.phone}`}
+                                        className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+                                      >
+                                        {altPlace.phone}
+                                      </a>
+                                    </div>
+                                  )}
+                                  {!!altPlace.website && (
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs">🌐</span>
+                                      <a
+                                        href={hrefForUserWebsite(altPlace.website)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+                                      >
+                                        {getHostname(hrefForUserWebsite(altPlace.website))}
+                                      </a>
+                                    </div>
+                                  )}
+                                  {!!altPlace.googlePlaceId && (
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs">🗺️</span>
+                                      <a
+                                        href={`https://www.google.com/maps/place/?q=place_id:${altPlace.googlePlaceId}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+                                      >
+                                        הצג בגוגל מפות
+                                      </a>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>

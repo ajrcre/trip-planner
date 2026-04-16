@@ -6,6 +6,7 @@ import type { CarRental, FlightLeg } from "@/lib/normalizers"
 import { decodeTravelEndpoint, encodeTravelEndpoint } from "@/lib/travel-endpoint-codec"
 import type { TravelEndpointRef } from "@/types/travel-leg"
 import { ActivityCard, type ActivityData } from "./ActivityCard"
+import { supportsAlternatives, alternativePlanLabel } from "@/lib/activity-alternatives"
 
 interface AttractionOption {
   id: string
@@ -37,6 +38,13 @@ interface AccommodationOption {
   name: string
 }
 
+interface AltDraft {
+  attractionId: string
+  restaurantId: string
+  groceryStoreId: string
+  notes: string
+}
+
 interface DayTimelineProps {
   tripId: string
   dayPlan: DayPlanData
@@ -65,6 +73,27 @@ const activityTypes = [
   { value: "lodging", label: "לינה" },
 ]
 
+type ActivityPayloadItem = {
+  sortOrder: number
+  timeStart?: string | null
+  timeEnd?: string | null
+  type: string
+  notes?: string | null
+  attractionId?: string | null
+  restaurantId?: string | null
+  groceryStoreId?: string | null
+  restAccommodationIndex?: number | null
+  travelTimeToNextMinutes?: number | null
+  travelLeg?: { origin: TravelEndpointRef; destination: TravelEndpointRef } | null
+  alternatives?: Array<{
+    priority: number
+    attractionId?: string | null
+    restaurantId?: string | null
+    groceryStoreId?: string | null
+    notes?: string | null
+  }> | null
+}
+
 export function DayTimeline({
   tripId,
   dayPlan,
@@ -92,6 +121,7 @@ export function DayTimeline({
   const [addNotes, setAddNotes] = useState("")
   const [addTravelOrigin, setAddTravelOrigin] = useState("")
   const [addTravelDest, setAddTravelDest] = useState("")
+  const [addAlternatives, setAddAlternatives] = useState<AltDraft[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
@@ -212,21 +242,7 @@ export function DayTimeline({
     carRentals,
   ])
 
-  function sortAndReindex(
-    activities: Array<{
-      sortOrder: number
-      timeStart?: string | null
-      timeEnd?: string | null
-      type: string
-      notes?: string | null
-      attractionId?: string | null
-      restaurantId?: string | null
-      groceryStoreId?: string | null
-      restAccommodationIndex?: number | null
-      travelTimeToNextMinutes?: number | null
-      travelLeg?: { origin: TravelEndpointRef; destination: TravelEndpointRef } | null
-    }>
-  ) {
+  function sortAndReindex(activities: ActivityPayloadItem[]): ActivityPayloadItem[] {
     return [...activities]
       .sort((a, b) => {
         if (!a.timeStart && !b.timeStart) return a.sortOrder - b.sortOrder
@@ -235,6 +251,41 @@ export function DayTimeline({
         return a.timeStart.localeCompare(b.timeStart)
       })
       .map((a, index) => ({ ...a, sortOrder: index }))
+  }
+
+  /** Build a payload item from an existing ActivityData, preserving alternatives. */
+  function activityToPayload(a: ActivityData): ActivityPayloadItem {
+    return {
+      sortOrder: a.sortOrder,
+      timeStart: a.timeStart,
+      timeEnd: a.timeEnd,
+      type: a.type,
+      notes: a.notes,
+      attractionId: a.attractionId,
+      restaurantId: a.restaurantId,
+      groceryStoreId: a.groceryStoreId,
+      restAccommodationIndex: a.restAccommodationIndex ?? null,
+      travelTimeToNextMinutes: a.travelTimeToNextMinutes,
+      travelLeg:
+        a.type === "travel" && a.travelLeg
+          ? { origin: a.travelLeg.origin, destination: a.travelLeg.destination }
+          : null,
+      alternatives: a.alternatives?.map((alt, i) => ({
+        priority: i,
+        notes: alt.notes,
+        attractionId: alt.attractionId,
+        restaurantId: alt.restaurantId,
+        groceryStoreId: alt.groceryStoreId,
+      })) ?? null,
+    }
+  }
+
+  async function putActivities(activities: ActivityPayloadItem[]) {
+    return fetch(`/api/trips/${tripId}/schedule/${dayPlan.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ activities }),
+    })
   }
 
   async function handleAddActivity() {
@@ -277,19 +328,21 @@ export function DayTimeline({
           ? accommodations[parseInt(addAccommodationIdx)]?.name ?? addNotes
           : addNotes
 
-      const newActivity: {
-        sortOrder: number
-        timeStart?: string | null
-        timeEnd?: string | null
-        type: string
-        notes?: string | null
-        attractionId?: string | null
-        restaurantId?: string | null
-        groceryStoreId?: string | null
-        restAccommodationIndex?: number | null
-        travelTimeToNextMinutes?: number | null
-        travelLeg?: { origin: TravelEndpointRef; destination: TravelEndpointRef } | null
-      } = {
+      // Build alternatives payload from draft rows
+      const alternativesPayload: ActivityPayloadItem["alternatives"] =
+        supportsAlternatives(addType)
+          ? addAlternatives
+              .map((alt, i) => ({
+                priority: i,
+                notes: alt.notes || null,
+                attractionId: addType === "attraction" && alt.attractionId ? alt.attractionId : null,
+                restaurantId: addType === "meal" && alt.restaurantId ? alt.restaurantId : null,
+                groceryStoreId: addType === "grocery" && alt.groceryStoreId ? alt.groceryStoreId : null,
+              }))
+              .filter((alt) => alt.attractionId || alt.restaurantId || alt.groceryStoreId)
+          : null
+
+      const newActivity: ActivityPayloadItem = {
         sortOrder: 999,
         type: addType,
         timeStart: addTimeStart || null,
@@ -304,35 +357,13 @@ export function DayTimeline({
             : null,
         travelTimeToNextMinutes: null,
         travelLeg,
+        alternatives: alternativesPayload,
       }
 
-      const existingActivities = dayPlan.activities.map((a) => ({
-        sortOrder: a.sortOrder,
-        timeStart: a.timeStart,
-        timeEnd: a.timeEnd,
-        type: a.type,
-        notes: a.notes,
-        attractionId: a.attractionId,
-        restaurantId: a.restaurantId,
-        groceryStoreId: a.groceryStoreId,
-        restAccommodationIndex: a.restAccommodationIndex ?? null,
-        travelTimeToNextMinutes: a.travelTimeToNextMinutes,
-        travelLeg:
-          a.type === "travel" && a.travelLeg
-            ? { origin: a.travelLeg.origin, destination: a.travelLeg.destination }
-            : null,
-      }))
-
+      const existingActivities = dayPlan.activities.map(activityToPayload)
       const allActivities = sortAndReindex([...existingActivities, newActivity])
 
-      const res = await fetch(
-        `/api/trips/${tripId}/schedule/${dayPlan.id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ activities: allActivities }),
-        }
-      )
+      const res = await putActivities(allActivities)
 
       if (res.ok) {
         resetAddForm()
@@ -355,25 +386,9 @@ export function DayTimeline({
       restAccommodationIndex?: number | null
     }
   ) {
-    // Rebuild all activities with the update applied, then re-sort by time
     const updatedActivities = sortAndReindex(
       dayPlan.activities.map((a) => {
-        const base = {
-          sortOrder: a.sortOrder,
-          timeStart: a.timeStart,
-          timeEnd: a.timeEnd,
-          type: a.type,
-          notes: a.notes,
-          attractionId: a.attractionId,
-          restaurantId: a.restaurantId,
-          groceryStoreId: a.groceryStoreId,
-          restAccommodationIndex: a.restAccommodationIndex ?? null,
-          travelTimeToNextMinutes: a.travelTimeToNextMinutes,
-          travelLeg:
-            a.type === "travel" && a.travelLeg
-              ? { origin: a.travelLeg.origin, destination: a.travelLeg.destination }
-              : null,
-        }
+        const base = activityToPayload(a)
         if (a.id === activity.id) {
           return {
             ...base,
@@ -395,15 +410,7 @@ export function DayTimeline({
     )
 
     try {
-      const res = await fetch(
-        `/api/trips/${tripId}/schedule/${dayPlan.id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ activities: updatedActivities }),
-        }
-      )
-
+      const res = await putActivities(updatedActivities)
       if (res.ok) {
         await onUpdate()
       }
@@ -419,7 +426,6 @@ export function DayTimeline({
         `/api/trips/${tripId}/schedule/${dayPlan.id}?activityId=${activityId}`,
         { method: "DELETE" }
       )
-
       if (res.ok) {
         onUpdate()
       }
@@ -428,6 +434,57 @@ export function DayTimeline({
     } finally {
       setDeletingId(null)
     }
+  }
+
+  async function handleRemoveAlternative(activityId: string, alternativeId: string) {
+    const updatedActivities = sortAndReindex(
+      dayPlan.activities.map((a) => {
+        const base = activityToPayload(a)
+        if (a.id !== activityId) return base
+        const filtered = (a.alternatives ?? [])
+          .filter((alt) => alt.id !== alternativeId)
+          .map((alt, i) => ({
+            priority: i,
+            notes: alt.notes,
+            attractionId: alt.attractionId,
+            restaurantId: alt.restaurantId,
+            groceryStoreId: alt.groceryStoreId,
+          }))
+        return { ...base, alternatives: filtered }
+      })
+    )
+    const res = await putActivities(updatedActivities)
+    if (res.ok) await onUpdate()
+  }
+
+  async function handleAddAlternative(activityId: string, placeId: string, notes: string) {
+    const activity = dayPlan.activities.find((a) => a.id === activityId)
+    if (!activity) return
+
+    const existingAlts = activity.alternatives ?? []
+    const newAlt = {
+      priority: existingAlts.length,
+      notes: notes || null,
+      attractionId: activity.type === "attraction" ? placeId : null,
+      restaurantId: activity.type === "meal" ? placeId : null,
+      groceryStoreId: activity.type === "grocery" ? placeId : null,
+    }
+
+    const updatedActivities = sortAndReindex(
+      dayPlan.activities.map((a) => {
+        const base = activityToPayload(a)
+        if (a.id !== activityId) return base
+        return {
+          ...base,
+          alternatives: [
+            ...(base.alternatives ?? []),
+            newAlt,
+          ],
+        }
+      })
+    )
+    const res = await putActivities(updatedActivities)
+    if (res.ok) await onUpdate()
   }
 
   function resetAddForm() {
@@ -443,6 +500,32 @@ export function DayTimeline({
     setAddTimeStart("")
     setAddTimeEnd("")
     setAddNotes("")
+    setAddAlternatives([])
+  }
+
+  function addAltRow() {
+    setAddAlternatives((prev) => [
+      ...prev,
+      { attractionId: "", restaurantId: "", groceryStoreId: "", notes: "" },
+    ])
+  }
+
+  function updateAltRow(index: number, field: keyof AltDraft, value: string) {
+    setAddAlternatives((prev) =>
+      prev.map((alt, i) => (i === index ? { ...alt, [field]: value } : alt))
+    )
+  }
+
+  function removeAltRow(index: number) {
+    setAddAlternatives((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  /** Returns alternative options for a given activity (for card inline add) */
+  function altOptionsForActivity(activity: ActivityData) {
+    if (activity.type === "attraction") return filteredAttractions
+    if (activity.type === "meal") return filteredRestaurants
+    if (activity.type === "grocery") return filteredGroceryStores
+    return []
   }
 
   return (
@@ -474,6 +557,9 @@ export function DayTimeline({
                 tripAccommodations={tripAccommodations}
                 restAccommodationChoices={accommodationOptions}
                 scheduleDate={dayPlan.date}
+                alternativeOptions={altOptionsForActivity(activity)}
+                onRemoveAlternative={handleRemoveAlternative}
+                onAddAlternative={handleAddAlternative}
               />
               {/* Travel time indicator between activities */}
               {activity.travelTimeToNextMinutes != null &&
@@ -516,7 +602,7 @@ export function DayTimeline({
               <label className="text-xs text-zinc-500">{"\u05E1\u05D5\u05D2"}</label>
               <select
                 value={addType}
-                onChange={(e) => setAddType(e.target.value)}
+                onChange={(e) => { setAddType(e.target.value); setAddAlternatives([]) }}
                 className="rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-700"
               >
                 {activityTypes.map((t) => (
@@ -581,6 +667,87 @@ export function DayTimeline({
                     </option>
                   ))}
                 </select>
+              </div>
+            )}
+
+            {/* Alternatives section (only for supported types) */}
+            {supportsAlternatives(addType) && (
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-zinc-500">חלופות</label>
+                  <button
+                    type="button"
+                    onClick={addAltRow}
+                    className="text-[11px] text-violet-600 hover:text-violet-700 dark:text-violet-400"
+                  >
+                    + הוסף {alternativePlanLabel(addAlternatives.length)}
+                  </button>
+                </div>
+
+                {addAlternatives.map((alt, i) => (
+                  <div
+                    key={i}
+                    className="flex flex-col gap-1.5 rounded border border-violet-200 bg-violet-50 p-2 dark:border-violet-700 dark:bg-violet-900/20"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-semibold text-violet-500 dark:text-violet-400">
+                        {alternativePlanLabel(i)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeAltRow(i)}
+                        className="text-[11px] text-zinc-400 hover:text-red-500"
+                      >
+                        הסר
+                      </button>
+                    </div>
+
+                    {addType === "attraction" && (
+                      <select
+                        value={alt.attractionId}
+                        onChange={(e) => updateAltRow(i, "attractionId", e.target.value)}
+                        className="rounded border border-zinc-300 px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-700"
+                      >
+                        <option value="">בחרו אטרקציה...</option>
+                        {filteredAttractions.map((a) => (
+                          <option key={a.id} value={a.id}>{a.name}</option>
+                        ))}
+                      </select>
+                    )}
+                    {addType === "meal" && (
+                      <select
+                        value={alt.restaurantId}
+                        onChange={(e) => updateAltRow(i, "restaurantId", e.target.value)}
+                        className="rounded border border-zinc-300 px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-700"
+                      >
+                        <option value="">בחרו מסעדה...</option>
+                        {filteredRestaurants.map((r) => (
+                          <option key={r.id} value={r.id}>{r.name}</option>
+                        ))}
+                      </select>
+                    )}
+                    {addType === "grocery" && (
+                      <select
+                        value={alt.groceryStoreId}
+                        onChange={(e) => updateAltRow(i, "groceryStoreId", e.target.value)}
+                        className="rounded border border-zinc-300 px-2 py-1.5 text-xs dark:border-zinc-600 dark:bg-zinc-700"
+                      >
+                        <option value="">בחרו חנות...</option>
+                        {filteredGroceryStores.map((g) => (
+                          <option key={g.id} value={g.id}>{g.name}</option>
+                        ))}
+                      </select>
+                    )}
+
+                    <input
+                      type="text"
+                      value={alt.notes}
+                      onChange={(e) => updateAltRow(i, "notes", e.target.value)}
+                      placeholder="הערות לחלופה (אופציונלי)..."
+                      className="rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-700"
+                    />
+                  </div>
+                ))}
               </div>
             )}
 

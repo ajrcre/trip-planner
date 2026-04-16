@@ -36,6 +36,14 @@ export async function GET(
               attraction: true,
               restaurant: true,
               groceryStore: true,
+              alternatives: {
+                include: {
+                  attraction: true,
+                  restaurant: true,
+                  groceryStore: true,
+                },
+                orderBy: { priority: "asc" as const },
+              },
             },
             orderBy: { sortOrder: "asc" },
           },
@@ -80,6 +88,14 @@ export async function GET(
         // travelLeg is stored as Json in Prisma — cast to the shape expected by export-docx
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         travelLeg: a.travelLeg as any,
+        alternatives: a.alternatives?.map((alt) => ({
+          id: alt.id,
+          priority: alt.priority,
+          notes: alt.notes,
+          attraction: alt.attraction,
+          restaurant: alt.restaurant,
+          groceryStore: alt.groceryStore,
+        })),
       })),
     })),
     packingItems: trip.packingItems,

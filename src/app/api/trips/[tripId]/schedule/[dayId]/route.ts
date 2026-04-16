@@ -8,6 +8,7 @@ import {
   buildTravelLegForSave,
   placeMapsFromTrip,
 } from "@/lib/travel-leg-resolve"
+import { supportsAlternatives } from "@/lib/activity-alternatives"
 import type { TravelEndpointRef } from "@/types/travel-leg"
 
 async function verifyDayPlan(dayId: string, tripId: string) {
@@ -18,6 +19,14 @@ async function verifyDayPlan(dayId: string, tripId: string) {
   if (!dayPlan || dayPlan.tripId !== tripId) return null
 
   return dayPlan
+}
+
+interface AlternativePayload {
+  priority: number
+  attractionId?: string | null
+  restaurantId?: string | null
+  groceryStoreId?: string | null
+  notes?: string | null
 }
 
 interface ActivityPayload {
@@ -35,7 +44,22 @@ interface ActivityPayload {
     origin: TravelEndpointRef
     destination: TravelEndpointRef
   } | null
+  alternatives?: AlternativePayload[] | null
 }
+
+const activityInclude = {
+  attraction: true,
+  restaurant: true,
+  groceryStore: true,
+  alternatives: {
+    include: {
+      attraction: true,
+      restaurant: true,
+      groceryStore: true,
+    },
+    orderBy: { priority: "asc" as const },
+  },
+} as const
 
 // PUT — Replace all activities for a day
 export async function PUT(
@@ -155,10 +179,13 @@ export async function PUT(
       prepared.push({ payload: raw, travelLegJson })
     }
 
-    await prisma.$transaction([
-      prisma.activity.deleteMany({ where: { dayPlanId: dayId } }),
-      ...prepared.map(({ payload: activity, travelLegJson }) =>
-        prisma.activity.create({
+    await prisma.$transaction(async (tx) => {
+      // Delete existing activities (cascade deletes their alternatives)
+      await tx.activity.deleteMany({ where: { dayPlanId: dayId } })
+
+      // Create each activity and its alternatives
+      for (const { payload: activity, travelLegJson } of prepared) {
+        const created = await tx.activity.create({
           data: {
             dayPlanId: dayId,
             sortOrder: activity.sortOrder,
@@ -177,8 +204,35 @@ export async function PUT(
             travelLeg: travelLegJson ?? undefined,
           },
         })
-      ),
-    ])
+
+        const alts = activity.alternatives
+        if (alts && alts.length > 0 && supportsAlternatives(activity.type)) {
+          // Validate place-type consistency
+          for (const alt of alts) {
+            if (activity.type === "attraction" && !alt.attractionId) {
+              throw new Error("חלופה לאטרקציה חייבת לכלול attractionId")
+            }
+            if (activity.type === "meal" && !alt.restaurantId) {
+              throw new Error("חלופה לארוחה חייבת לכלול restaurantId")
+            }
+            if (activity.type === "grocery" && !alt.groceryStoreId) {
+              throw new Error("חלופה לקניות חייבת לכלול groceryStoreId")
+            }
+          }
+
+          await tx.activityAlternative.createMany({
+            data: alts.map((alt) => ({
+              activityId: created.id,
+              priority: alt.priority,
+              notes: alt.notes ?? null,
+              attractionId: alt.attractionId ?? null,
+              restaurantId: alt.restaurantId ?? null,
+              groceryStoreId: alt.groceryStoreId ?? null,
+            })),
+          })
+        }
+      }
+    })
   } catch (err) {
     console.error("Schedule day PUT failed:", err)
     const msg = err instanceof Error ? err.message : String(err)
@@ -200,11 +254,7 @@ export async function PUT(
     where: { id: dayId },
     include: {
       activities: {
-        include: {
-          attraction: true,
-          restaurant: true,
-          groceryStore: true,
-        },
+        include: activityInclude,
         orderBy: { sortOrder: "asc" },
       },
     },
@@ -271,11 +321,7 @@ export async function POST(
             ? null
             : undefined,
     },
-    include: {
-      attraction: true,
-      restaurant: true,
-      groceryStore: true,
-    },
+    include: activityInclude,
   })
 
   return NextResponse.json(activity, { status: 201 })

@@ -7,6 +7,20 @@ import { computeDrivingTimesForDay, DrivingTimeFromLodging } from "@/lib/driving
 import { requireTripAccess } from "@/lib/trip-access"
 import { getPlaceDetails } from "@/lib/google-maps"
 
+const activityInclude = {
+  attraction: true,
+  restaurant: true,
+  groceryStore: true,
+  alternatives: {
+    include: {
+      attraction: true,
+      restaurant: true,
+      groceryStore: true,
+    },
+    orderBy: { priority: "asc" as const },
+  },
+} as const
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ tripId: string }> }
@@ -21,11 +35,7 @@ export async function GET(
     where: { tripId },
     include: {
       activities: {
-        include: {
-          attraction: true,
-          restaurant: true,
-          groceryStore: true,
-        },
+        include: activityInclude,
         orderBy: { sortOrder: "asc" },
       },
     },
@@ -71,7 +81,7 @@ export async function GET(
         where: { tripId },
         include: {
           activities: {
-            include: { attraction: true, restaurant: true, groceryStore: true },
+            include: activityInclude,
             orderBy: { sortOrder: "asc" },
           },
         },
@@ -122,7 +132,7 @@ export async function GET(
         where: { tripId },
         include: {
           activities: {
-            include: { attraction: true, restaurant: true, groceryStore: true },
+            include: activityInclude,
             orderBy: { sortOrder: "asc" },
           },
         },
@@ -177,7 +187,18 @@ export async function GET(
             activity.attraction || activity.restaurant || activity.groceryStore
               ? await computeDrivingTimesForDay(dayAccommodations, activity)
               : []
-          return { ...activity, drivingTimesFromLodging }
+
+          const enrichedAlternatives = await Promise.all(
+            (activity.alternatives ?? []).map(async (alt) => {
+              const drivingTimesFromLodging: DrivingTimeFromLodging[] =
+                alt.attraction || alt.restaurant || alt.groceryStore
+                  ? await computeDrivingTimesForDay(dayAccommodations, alt)
+                  : []
+              return { ...alt, drivingTimesFromLodging }
+            })
+          )
+
+          return { ...activity, drivingTimesFromLodging, alternatives: enrichedAlternatives }
         })
       )
 
@@ -207,11 +228,7 @@ export async function POST(
     where: { tripId },
     include: {
       activities: {
-        include: {
-          attraction: true,
-          restaurant: true,
-          groceryStore: true,
-        },
+        include: activityInclude,
         orderBy: { sortOrder: "asc" },
       },
     },
@@ -296,11 +313,7 @@ export async function POST(
     where: { tripId },
     include: {
       activities: {
-        include: {
-          attraction: true,
-          restaurant: true,
-          groceryStore: true,
-        },
+        include: activityInclude,
         orderBy: { sortOrder: "asc" },
       },
     },

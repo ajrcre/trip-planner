@@ -3,6 +3,7 @@ import type { DayPlanData } from "@/components/schedule/DayTimeline"
 import type { Accommodation } from "@/lib/accommodations"
 import { parseDayHours, DAY_NAMES_EN, DAY_NAMES_HE, formatAmPmTimesInText } from "@/lib/time-parsing"
 import { googleMapsUrl } from "@/lib/url-helpers"
+import { alternativePlanLabel } from "@/lib/activity-alternatives"
 
 const dayTypeLabels: Record<string, { label: string; icon: string }> = {
   arrival: { label: "יום הגעה", icon: "✈️" },
@@ -117,6 +118,21 @@ function formatActivity(
     activity.type !== "travel"
   ) {
     lines.push(`📝 ${activity.notes}`)
+  }
+
+  // Backup alternatives (Plan B, C, D...)
+  if (activity.alternatives && activity.alternatives.length > 0) {
+    lines.push("")
+    for (const alt of activity.alternatives) {
+      const altPlace = alt.attraction ?? alt.restaurant ?? alt.groceryStore
+      if (!altPlace) continue
+      const label = alternativePlanLabel(alt.priority)
+      lines.push(`↳ *${label}:* ${altPlace.name}`)
+      if (altPlace.phone) lines.push(`  📞 ${altPlace.phone}`)
+      const altHours = getOpeningHoursForDate(altPlace.openingHours, dateStr)
+      if (altHours) lines.push(`  🕐 ${altHours}`)
+      if (alt.notes) lines.push(`  📝 ${alt.notes}`)
+    }
   }
 
   return lines.join("\n")
