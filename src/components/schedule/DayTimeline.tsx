@@ -352,7 +352,7 @@ export function DayTimeline({
         restaurantId: addType === "meal" && addRestaurantId ? addRestaurantId : null,
         groceryStoreId: addType === "grocery" && addGroceryStoreId ? addGroceryStoreId : null,
         restAccommodationIndex:
-          addType === "rest" && addRestAccommodationIdx !== ""
+          (addType === "rest" || addType === "meal") && addRestAccommodationIdx !== ""
             ? parseInt(addRestAccommodationIdx, 10)
             : null,
         travelTimeToNextMinutes: null,
@@ -602,7 +602,7 @@ export function DayTimeline({
               <label className="text-xs text-zinc-500">{"\u05E1\u05D5\u05D2"}</label>
               <select
                 value={addType}
-                onChange={(e) => { setAddType(e.target.value); setAddAlternatives([]) }}
+                onChange={(e) => { setAddType(e.target.value); setAddAlternatives([]); setAddRestAccommodationIdx("") }}
                 className="rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-700"
               >
                 {activityTypes.map((t) => (
@@ -645,6 +645,25 @@ export function DayTimeline({
                   {filteredRestaurants.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Accommodation option for meal at lodging */}
+            {addType === "meal" && accommodationOptions.length > 0 && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-zinc-500">לינה (אם הארוחה בלינה)</label>
+                <select
+                  value={addRestAccommodationIdx}
+                  onChange={(e) => setAddRestAccommodationIdx(e.target.value)}
+                  className="rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-700"
+                >
+                  <option value="">ללא (מסעדה / מקום אחר)</option>
+                  {accommodationOptions.map((opt) => (
+                    <option key={opt.index} value={String(opt.index)}>
+                      {opt.name}
                     </option>
                   ))}
                 </select>

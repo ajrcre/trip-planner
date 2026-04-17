@@ -92,6 +92,28 @@ function hrefForUserWebsite(raw: string): string {
   return `https://${t}`
 }
 
+function formatDuration(timeStart: string, timeEnd: string): string {
+  const [sh, sm] = timeStart.split(":").map(Number)
+  const [eh, em] = timeEnd.split(":").map(Number)
+  const totalMins = (eh * 60 + em) - (sh * 60 + sm)
+  if (totalMins <= 0) return ""
+  const hours = Math.floor(totalMins / 60)
+  const mins = totalMins % 60
+  if (hours === 0) {
+    if (mins === 15) return "רבע שעה"
+    if (mins === 30) return "חצי שעה"
+    return `${mins} דק׳`
+  }
+  if (hours === 1 && mins === 0) return "שעה"
+  if (hours === 1 && mins === 15) return "שעה ורבע"
+  if (hours === 1 && mins === 30) return "שעה וחצי"
+  if (hours === 2 && mins === 0) return "שעתיים"
+  if (hours === 2 && mins === 30) return "שעתיים וחצי"
+  if (mins === 0) return `${hours} שעות`
+  if (mins === 30) return `${hours} שעות וחצי`
+  return `${hours} שע׳ ${mins} דק׳`
+}
+
 interface ActivityCardProps {
   activity: ActivityData
   onEdit: (
@@ -136,6 +158,7 @@ export function ActivityCard({
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [editTimeStart, setEditTimeStart] = useState(activity.timeStart ?? "")
   const [editTimeEnd, setEditTimeEnd] = useState(activity.timeEnd ?? "")
   const [editNotes, setEditNotes] = useState(activity.notes ?? "")
@@ -165,7 +188,7 @@ export function ActivityCard({
 
   const place = activity.attraction ?? activity.restaurant ?? activity.groceryStore
   const restAccommodation =
-    activity.type === "rest" &&
+    (activity.type === "rest" || activity.type === "meal") &&
     activity.restAccommodationIndex != null &&
     tripAccommodations
       ? tripAccommodations[activity.restAccommodationIndex]
@@ -187,6 +210,9 @@ export function ActivityCard({
     }
     if (activity.type === "rest" && restAccommodation?.name) {
       return `מנוחה — ${restAccommodation.name}`
+    }
+    if (activity.type === "meal" && !activity.restaurant && restAccommodation?.name) {
+      return restAccommodation.name
     }
     return (
       activity.attraction?.name ??
@@ -242,6 +268,9 @@ export function ActivityCard({
           timeStart: editTimeStart || undefined,
           timeEnd: editTimeEnd || undefined,
           notes: editNotes || undefined,
+          restAccommodationIndex: activity.type === "meal"
+            ? (editRestAccommodationIdx !== "" ? parseInt(editRestAccommodationIdx, 10) : null)
+            : undefined,
         })
       }
       setIsEditing(false)
@@ -319,7 +348,6 @@ export function ActivityCard({
       {isEditing ? (
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-lg">{config.icon}</span>
             <span className="text-sm font-medium">{name}</span>
           </div>
 
@@ -355,6 +383,26 @@ export function ActivityCard({
                   className="rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-700"
                 >
                   <option value="">בחרו לינה...</option>
+                  {restAccommodationChoices.map((opt) => (
+                    <option key={opt.index} value={String(opt.index)}>
+                      {opt.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+          {activity.type === "meal" &&
+            restAccommodationChoices &&
+            restAccommodationChoices.length > 0 && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-zinc-500">לינה (אם הארוחה בלינה)</label>
+                <select
+                  value={editRestAccommodationIdx}
+                  onChange={(e) => setEditRestAccommodationIdx(e.target.value)}
+                  className="rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-700"
+                >
+                  <option value="">ללא (מסעדה / מקום אחר)</option>
                   {restAccommodationChoices.map((opt) => (
                     <option key={opt.index} value={String(opt.index)}>
                       {opt.name}
@@ -550,14 +598,17 @@ export function ActivityCard({
         </div>
       ) : (
         <div className="flex items-start gap-3">
-          <span className="mt-0.5 text-lg">{config.icon}</span>
-
           <div className="flex flex-1 flex-col gap-1">
             {(activity.timeStart || activity.timeEnd) && (
               <span className="text-sm font-bold text-zinc-700 dark:text-zinc-200">
                 {activity.timeStart ?? ""}
                 {activity.timeStart && activity.timeEnd ? " - " : ""}
                 {activity.timeEnd ?? ""}
+                {(() => {
+                  if (!activity.timeStart || !activity.timeEnd) return ""
+                  const d = formatDuration(activity.timeStart, activity.timeEnd)
+                  return d ? ` (${d})` : ""
+                })()}
               </span>
             )}
 
@@ -569,7 +620,7 @@ export function ActivityCard({
               <span className="font-medium text-sm">{name}</span>
             </div>
 
-            {activity.type === "rest" && restAccommodation && (
+            {(activity.type === "rest" || activity.type === "meal") && restAccommodation && (
               <div className="flex flex-wrap items-center gap-2">
                 <a
                   href={googleMapsUrl(restAccommodation.name ?? "לינה", {
@@ -903,37 +954,55 @@ export function ActivityCard({
           </div>
 
           {/* Action buttons */}
-          <div className="flex gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-            <button
-              onClick={beginEditing}
-              className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-700 dark:hover:text-zinc-300"
-              title={"\u05E2\u05E8\u05D9\u05DB\u05D4"}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-              </svg>
-            </button>
-            <button
-              onClick={() => {
-                if (!confirm("למחוק את הפעילות?")) return
-                onDelete(activity.id)
-              }}
-              disabled={isDeleting}
-              className="rounded p-1 text-zinc-400 hover:bg-red-50 hover:text-red-500 disabled:opacity-50 dark:hover:bg-red-900/20"
-              title={"\u05DE\u05D7\u05D9\u05E7\u05D4"}
-            >
-              {isDeleting ? (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin">
-                  <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
-                </svg>
-              ) : (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M3 6h18" />
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                </svg>
-              )}
-            </button>
+          <div className={`flex gap-1 items-center transition-opacity ${showDeleteConfirm ? "opacity-100" : "opacity-100 sm:opacity-0 sm:group-hover:opacity-100"}`}>
+            {showDeleteConfirm ? (
+              <>
+                <span className="text-[11px] text-red-500 ml-1">למחוק?</span>
+                <button
+                  onClick={() => { setShowDeleteConfirm(false); onDelete(activity.id) }}
+                  disabled={isDeleting}
+                  className="rounded px-1.5 py-0.5 text-[11px] bg-red-500 text-white hover:bg-red-600 disabled:opacity-50"
+                >
+                  כן
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="rounded px-1.5 py-0.5 text-[11px] border border-zinc-300 hover:bg-zinc-100 dark:border-zinc-600 dark:hover:bg-zinc-700"
+                >
+                  לא
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={beginEditing}
+                  className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-700 dark:hover:text-zinc-300"
+                  title="עריכה"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  disabled={isDeleting}
+                  className="rounded p-1 text-zinc-400 hover:bg-red-50 hover:text-red-500 disabled:opacity-50 dark:hover:bg-red-900/20"
+                  title="מחיקה"
+                >
+                  {isDeleting ? (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin">
+                      <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
+                    </svg>
+                  ) : (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M3 6h18" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>
+                  )}
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
