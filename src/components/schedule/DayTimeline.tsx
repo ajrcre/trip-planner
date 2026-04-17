@@ -112,7 +112,8 @@ export function DayTimeline({
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [addType, setAddType] = useState("attraction")
   const [addAttractionId, setAddAttractionId] = useState("")
-  const [addRestaurantId, setAddRestaurantId] = useState("")
+  const [addRestaurantId, setAddRestaurantId] = useState("") // kept for alternatives
+  const [addMealLocationId, setAddMealLocationId] = useState("") // "r:{restaurantId}" | "a:{accommodationIndex}"
   const [addGroceryStoreId, setAddGroceryStoreId] = useState("")
   const [addAccommodationIdx, setAddAccommodationIdx] = useState("")
   const [addRestAccommodationIdx, setAddRestAccommodationIdx] = useState("")
@@ -349,11 +350,13 @@ export function DayTimeline({
         timeEnd: addTimeEnd || null,
         notes: effectiveNotes || null,
         attractionId: addType === "attraction" && addAttractionId ? addAttractionId : null,
-        restaurantId: addType === "meal" && addRestaurantId ? addRestaurantId : null,
+        restaurantId: addType === "meal" && addMealLocationId.startsWith("r:") ? addMealLocationId.slice(2) : null,
         groceryStoreId: addType === "grocery" && addGroceryStoreId ? addGroceryStoreId : null,
         restAccommodationIndex:
-          (addType === "rest" || addType === "meal") && addRestAccommodationIdx !== ""
+          addType === "rest" && addRestAccommodationIdx !== ""
             ? parseInt(addRestAccommodationIdx, 10)
+            : addType === "meal" && addMealLocationId.startsWith("a:")
+            ? parseInt(addMealLocationId.slice(2), 10)
             : null,
         travelTimeToNextMinutes: null,
         travelLeg,
@@ -492,6 +495,7 @@ export function DayTimeline({
     setAddType("attraction")
     setAddAttractionId("")
     setAddRestaurantId("")
+    setAddMealLocationId("")
     setAddGroceryStoreId("")
     setAddAccommodationIdx("")
     setAddRestAccommodationIdx("")
@@ -602,7 +606,7 @@ export function DayTimeline({
               <label className="text-xs text-zinc-500">{"\u05E1\u05D5\u05D2"}</label>
               <select
                 value={addType}
-                onChange={(e) => { setAddType(e.target.value); setAddAlternatives([]); setAddRestAccommodationIdx("") }}
+                onChange={(e) => { setAddType(e.target.value); setAddAlternatives([]); setAddRestAccommodationIdx(""); setAddMealLocationId("") }}
                 className="rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-700"
               >
                 {activityTypes.map((t) => (
@@ -632,38 +636,24 @@ export function DayTimeline({
               </div>
             )}
 
-            {/* Restaurant dropdown */}
+            {/* Meal location — restaurants + accommodations in one dropdown */}
             {addType === "meal" && (
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-zinc-500">{"\u05DE\u05E1\u05E2\u05D3\u05D4"}</label>
+                <label className="text-xs text-zinc-500">מקום</label>
                 <select
-                  value={addRestaurantId}
-                  onChange={(e) => setAddRestaurantId(e.target.value)}
+                  value={addMealLocationId}
+                  onChange={(e) => setAddMealLocationId(e.target.value)}
                   className="rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-700"
                 >
-                  <option value="">{"\u05D1\u05D7\u05E8\u05D5 \u05DE\u05E1\u05E2\u05D3\u05D4..."}</option>
+                  <option value="">בחרו מקום...</option>
                   {filteredRestaurants.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
+                    <option key={`r:${r.id}`} value={`r:${r.id}`}>
+                      מסעדה: {r.name}
                     </option>
                   ))}
-                </select>
-              </div>
-            )}
-
-            {/* Accommodation option for meal at lodging */}
-            {addType === "meal" && accommodationOptions.length > 0 && (
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-zinc-500">לינה (אם הארוחה בלינה)</label>
-                <select
-                  value={addRestAccommodationIdx}
-                  onChange={(e) => setAddRestAccommodationIdx(e.target.value)}
-                  className="rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-700"
-                >
-                  <option value="">ללא (מסעדה / מקום אחר)</option>
                   {accommodationOptions.map((opt) => (
-                    <option key={opt.index} value={String(opt.index)}>
-                      {opt.name}
+                    <option key={`a:${opt.index}`} value={`a:${opt.index}`}>
+                      צימר: {opt.name}
                     </option>
                   ))}
                 </select>
