@@ -25,7 +25,6 @@ const baseTrip = {
   destination: "Paris",
   startDate: new Date(),
   endDate: new Date(),
-  shareToken: null,
   accommodation: null,
   flights: null,
   carRental: null,
