@@ -7,6 +7,7 @@ import { detectTimeConflict } from "@/lib/time-parsing"
 import type { TravelEndpointRef, TravelLegStored } from "@/types/travel-leg"
 import { decodeTravelEndpoint, encodeTravelEndpoint } from "@/lib/travel-endpoint-codec"
 import { OpeningHoursSection } from "./OpeningHoursSection"
+import { TextWithLinks } from "@/components/shared/TextWithLinks"
 import { alternativePlanLabel, supportsAlternatives } from "@/lib/activity-alternatives"
 
 export interface PlaceData {
@@ -454,12 +455,12 @@ export function ActivityCard({
 
           <div className="flex flex-col gap-1">
             <label className="text-xs text-zinc-500">{"\u05D4\u05E2\u05E8\u05D5\u05EA"}</label>
-            <input
-              type="text"
+            <textarea
+              rows={3}
               value={editNotes}
               onChange={(e) => setEditNotes(e.target.value)}
               placeholder={"\u05D4\u05E2\u05E8\u05D5\u05EA..."}
-              className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-700"
+              className="resize-none rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-700"
             />
           </div>
 
@@ -486,7 +487,7 @@ export function ActivityCard({
                             {altPlace.name}
                           </span>
                           {alt.notes && (
-                            <span className="text-[11px] text-zinc-400 dark:text-zinc-500">{alt.notes}</span>
+                            <TextWithLinks text={alt.notes} className="text-[11px] text-zinc-400 dark:text-zinc-500" />
                           )}
                         </div>
                         {onRemoveAlternative && (
@@ -704,9 +705,7 @@ export function ActivityCard({
             {activity.notes &&
               activity.type !== "custom" &&
               activity.type !== "travel" && (
-              <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                {activity.notes}
-              </span>
+              <TextWithLinks text={activity.notes} className="text-xs text-zinc-500 dark:text-zinc-400" />
             )}
 
             {/* Collapsible place details */}
@@ -852,7 +851,7 @@ export function ActivityCard({
                             {altPlace.name}
                           </div>
                           {alt.notes && (
-                            <div className="mt-0.5 text-[11px] text-zinc-400 dark:text-zinc-500">{alt.notes}</div>
+                            <TextWithLinks text={alt.notes} className="mt-0.5 text-[11px] text-zinc-400 dark:text-zinc-500" />
                           )}
                           {alt.drivingTimesFromLodging && alt.drivingTimesFromLodging.length > 0 && (
                             <div className="mt-0.5 flex flex-wrap gap-1">

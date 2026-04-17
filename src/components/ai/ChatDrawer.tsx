@@ -37,7 +37,7 @@ export default function ChatDrawer({
   )
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -191,7 +191,7 @@ export default function ChatDrawer({
     setMessages([])
   }, [])
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
       sendMessage(input)
@@ -310,16 +310,16 @@ export default function ChatDrawer({
 
         {/* Input area */}
         <div className="border-t border-zinc-200 p-4 dark:border-zinc-700">
-          <div className="flex items-center gap-2">
-            <input
+          <div className="flex items-end gap-2">
+            <textarea
               ref={inputRef}
-              type="text"
+              rows={3}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="מה תרצה לתכנן?"
               disabled={isLoading}
-              className="flex-1 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-800 placeholder-zinc-400 outline-none transition-colors focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-500"
+              className="flex-1 resize-none rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-800 placeholder-zinc-400 outline-none transition-colors focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-500"
             />
             <button
               onClick={() => sendMessage(input)}

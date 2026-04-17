@@ -17,6 +17,7 @@ import {
 } from "@/components/shared/ItemTable"
 import { useTableFiltering, commonComparators } from "@/hooks/useTableFiltering"
 import { useItemActions } from "@/hooks/useItemActions"
+import { TextWithLinks } from "@/components/shared/TextWithLinks"
 
 interface SavedAttraction extends BaseItem {
   description: string | null
@@ -109,16 +110,16 @@ export function AttractionTable({
       render: (item) => {
         if (editingNotesId === item.id) {
           return (
-            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-              <input
-                type="text"
+            <div className="flex items-start gap-1" onClick={(e) => e.stopPropagation()}>
+              <textarea
+                rows={3}
                 value={notesValue}
                 onChange={(e) => setNotesValue(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") handleNotesSave(item.id)
+                  if (e.key === "Enter" && !e.shiftKey) handleNotesSave(item.id)
                   if (e.key === "Escape") setEditingNotesId(null)
                 }}
-                className="w-40 rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-700"
+                className="w-40 resize-none rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-700"
                 autoFocus
                 dir="rtl"
               />
@@ -240,7 +241,7 @@ export function AttractionTable({
             {attraction.specialNotes && (
               <div>
                 <span className="font-medium text-zinc-600 dark:text-zinc-400">הערות: </span>
-                <span>{attraction.specialNotes}</span>
+                <TextWithLinks text={attraction.specialNotes} />
               </div>
             )}
             {/* Nearby restaurant */}

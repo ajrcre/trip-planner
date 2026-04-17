@@ -27,6 +27,17 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
   )
 }
 
+function LinkInfoRow({ label, value }: { label: string; value?: string | null }) {
+  if (!value) return null
+  const href = /^https?:\/\//i.test(value) ? value : `https://${value}`
+  return (
+    <div className="flex gap-2 text-sm">
+      <span className="shrink-0 font-medium text-zinc-600 dark:text-zinc-400">{label}:</span>
+      <a href={href} target="_blank" rel="noopener noreferrer" className="min-w-0 break-all text-blue-600 hover:underline dark:text-blue-400">{value}</a>
+    </div>
+  )
+}
+
 function LocationLinks({ address }: { address: string }) {
   const encoded = encodeURIComponent(address)
   const gmapsUrl = `https://www.google.com/maps/search/?api=1&query=${encoded}`
@@ -233,7 +244,7 @@ export function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () =>
                   {accommodations.length === 1 && <InfoRow label="שם" value={acc.name} />}
                   <InfoRow label="כתובת" value={acc.address} />
                   {(acc.address || acc.name) && <LocationLinks address={acc.address || acc.name || ""} />}
-                  <InfoRow label="אתר" value={acc.website ?? undefined} />
+                  <LinkInfoRow label="אתר" value={acc.website ?? undefined} />
                   <InfoRow label="צ'ק-אין" value={acc.checkIn ? formatUiDateTime(acc.checkIn) : undefined} />
                   <InfoRow label="צ'ק-אאוט" value={acc.checkOut ? formatUiDateTime(acc.checkOut) : undefined} />
                   <InfoRow label="פרטי קשר" value={acc.contact} />

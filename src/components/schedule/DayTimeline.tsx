@@ -748,12 +748,12 @@ export function DayTimeline({
                       </select>
                     )}
 
-                    <input
-                      type="text"
+                    <textarea
+                      rows={3}
                       value={alt.notes}
                       onChange={(e) => updateAltRow(i, "notes", e.target.value)}
                       placeholder="הערות לחלופה (אופציונלי)..."
-                      className="rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-700"
+                      className="resize-none rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-700"
                     />
                   </div>
                 ))}
@@ -874,12 +874,12 @@ export function DayTimeline({
             {/* Notes */}
             <div className="flex flex-col gap-1">
               <label className="text-xs text-zinc-500">{"\u05D4\u05E2\u05E8\u05D5\u05EA"}</label>
-              <input
-                type="text"
+              <textarea
+                rows={3}
                 value={addNotes}
                 onChange={(e) => setAddNotes(e.target.value)}
                 placeholder={"\u05D4\u05E2\u05E8\u05D5\u05EA..."}
-                className="rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-700"
+                className="resize-none rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-700"
               />
             </div>
 
