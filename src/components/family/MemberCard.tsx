@@ -74,6 +74,7 @@ export function MemberCard({ member, onUpdate, onDelete }: MemberCardProps) {
   }
 
   const handleDelete = async () => {
+    if (!confirm(`למחוק את ${member.name}?`)) return
     setLoading(true)
     try {
       const res = await fetch(`/api/family/members/${member.id}`, {

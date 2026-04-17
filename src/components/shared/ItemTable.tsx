@@ -261,6 +261,7 @@ export function deleteColumn<T extends BaseItem>(
       <button
         onClick={(e) => {
           e.stopPropagation()
+          if (!confirm("למחוק את הפריט?")) return
           handleDelete(item.id)
         }}
         disabled={updatingId === item.id}

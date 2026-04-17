@@ -903,7 +903,7 @@ export function ActivityCard({
           </div>
 
           {/* Action buttons */}
-          <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+          <div className="flex gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
             <button
               onClick={beginEditing}
               className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-700 dark:hover:text-zinc-300"
@@ -915,7 +915,10 @@ export function ActivityCard({
               </svg>
             </button>
             <button
-              onClick={() => onDelete(activity.id)}
+              onClick={() => {
+                if (!confirm("למחוק את הפעילות?")) return
+                onDelete(activity.id)
+              }}
               disabled={isDeleting}
               className="rounded p-1 text-zinc-400 hover:bg-red-50 hover:text-red-500 disabled:opacity-50 dark:hover:bg-red-900/20"
               title={"\u05DE\u05D7\u05D9\u05E7\u05D4"}
