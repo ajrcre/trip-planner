@@ -372,3 +372,41 @@ export async function DELETE(
 
   return NextResponse.json({ success: true })
 }
+
+// PATCH — Update the day-level note
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ tripId: string; dayId: string }> }
+) {
+  const { tripId, dayId } = await params
+
+  const result = await requireTripAccess(tripId)
+  if (result instanceof NextResponse) return result
+  const { role } = result
+
+  if (role === "viewer") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
+  const dayPlan = await verifyDayPlan(dayId, tripId)
+  if (!dayPlan) {
+    return NextResponse.json({ error: "Day plan not found" }, { status: 404 })
+  }
+
+  const body = await request.json()
+  const { notes } = body
+
+  if (notes !== null && typeof notes !== "string") {
+    return NextResponse.json(
+      { error: "notes must be a string or null" },
+      { status: 400 }
+    )
+  }
+
+  const updated = await prisma.dayPlan.update({
+    where: { id: dayId },
+    data: { notes: notes === "" ? null : notes },
+  })
+
+  return NextResponse.json(updated)
+}
