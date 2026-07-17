@@ -284,6 +284,7 @@ model DayPlan {
   date     DateTime
   dayType  String
   isLocked Boolean  @default(false)
+  notes    String?  @db.Text
 
   activities Activity[]
 
