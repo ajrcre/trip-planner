@@ -7,6 +7,7 @@ import { decodeTravelEndpoint, encodeTravelEndpoint } from "@/lib/travel-endpoin
 import type { TravelEndpointRef } from "@/types/travel-leg"
 import { ActivityCard, type ActivityData } from "./ActivityCard"
 import { supportsAlternatives, alternativePlanLabel } from "@/lib/activity-alternatives"
+import { MarkdownTextarea } from "@/components/shared/MarkdownTextarea"
 
 interface AttractionOption {
   id: string
@@ -384,7 +385,7 @@ export function DayTimeline({
     updates: {
       timeStart?: string
       timeEnd?: string
-      notes?: string
+      notes?: string | null
       travelLeg?: { origin: TravelEndpointRef; destination: TravelEndpointRef } | null
       restAccommodationIndex?: number | null
     }
@@ -397,7 +398,7 @@ export function DayTimeline({
             ...base,
             timeStart: updates.timeStart ?? a.timeStart,
             timeEnd: updates.timeEnd ?? a.timeEnd,
-            notes: updates.notes ?? a.notes,
+            notes: updates.notes !== undefined ? updates.notes : a.notes,
             travelLeg:
               updates.travelLeg !== undefined
                 ? updates.travelLeg
@@ -748,12 +749,11 @@ export function DayTimeline({
                       </select>
                     )}
 
-                    <textarea
-                      rows={3}
+                    <MarkdownTextarea
                       value={alt.notes}
-                      onChange={(e) => updateAltRow(i, "notes", e.target.value)}
+                      onChange={(v) => updateAltRow(i, "notes", v)}
+                      rows={3}
                       placeholder="הערות לחלופה (אופציונלי)..."
-                      className="resize-none rounded border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-700"
                     />
                   </div>
                 ))}
@@ -874,12 +874,11 @@ export function DayTimeline({
             {/* Notes */}
             <div className="flex flex-col gap-1">
               <label className="text-xs text-zinc-500">{"\u05D4\u05E2\u05E8\u05D5\u05EA"}</label>
-              <textarea
-                rows={3}
+              <MarkdownTextarea
                 value={addNotes}
-                onChange={(e) => setAddNotes(e.target.value)}
+                onChange={setAddNotes}
+                rows={3}
                 placeholder={"\u05D4\u05E2\u05E8\u05D5\u05EA..."}
-                className="resize-none rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-700"
               />
             </div>
 

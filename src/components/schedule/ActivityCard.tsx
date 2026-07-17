@@ -8,6 +8,7 @@ import type { TravelEndpointRef, TravelLegStored } from "@/types/travel-leg"
 import { decodeTravelEndpoint, encodeTravelEndpoint } from "@/lib/travel-endpoint-codec"
 import { OpeningHoursSection } from "./OpeningHoursSection"
 import { TextWithLinks } from "@/components/shared/TextWithLinks"
+import { MarkdownTextarea } from "@/components/shared/MarkdownTextarea"
 import { alternativePlanLabel, supportsAlternatives } from "@/lib/activity-alternatives"
 
 export interface PlaceData {
@@ -122,7 +123,7 @@ interface ActivityCardProps {
     updates: {
       timeStart?: string
       timeEnd?: string
-      notes?: string
+      notes?: string | null
       travelLeg?: { origin: TravelEndpointRef; destination: TravelEndpointRef } | null
       restAccommodationIndex?: number | null
     }
@@ -245,7 +246,7 @@ export function ActivityCard({
         await onEdit(activity, {
           timeStart: editTimeStart || undefined,
           timeEnd: editTimeEnd || undefined,
-          notes: editNotes || undefined,
+          notes: editNotes.trim() ? editNotes : null,
           travelLeg: { origin: o, destination: d },
         })
       } else if (activity.type === "rest") {
@@ -261,14 +262,14 @@ export function ActivityCard({
         await onEdit(activity, {
           timeStart: editTimeStart || undefined,
           timeEnd: editTimeEnd || undefined,
-          notes: editNotes || undefined,
+          notes: editNotes.trim() ? editNotes : null,
           restAccommodationIndex: idx,
         })
       } else {
         await onEdit(activity, {
           timeStart: editTimeStart || undefined,
           timeEnd: editTimeEnd || undefined,
-          notes: editNotes || undefined,
+          notes: editNotes.trim() ? editNotes : null,
           restAccommodationIndex: activity.type === "meal"
             ? (editRestAccommodationIdx !== "" ? parseInt(editRestAccommodationIdx, 10) : null)
             : undefined,
@@ -455,12 +456,11 @@ export function ActivityCard({
 
           <div className="flex flex-col gap-1">
             <label className="text-xs text-zinc-500">{"\u05D4\u05E2\u05E8\u05D5\u05EA"}</label>
-            <textarea
-              rows={3}
+            <MarkdownTextarea
               value={editNotes}
-              onChange={(e) => setEditNotes(e.target.value)}
+              onChange={setEditNotes}
+              rows={3}
               placeholder={"\u05D4\u05E2\u05E8\u05D5\u05EA..."}
-              className="resize-none rounded border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-700"
             />
           </div>
 
