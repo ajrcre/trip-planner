@@ -12,6 +12,7 @@ import { TripMap } from "@/components/maps/TripMap"
 import { normalizeAccommodations } from "@/lib/accommodations"
 import type { Trip } from "../TripDashboard"
 import { formatUiDateTime } from "@/lib/format-time"
+import { TextWithLinks } from "@/components/shared/TextWithLinks"
 
 function formatDate(date: string) {
   return new Date(date).toLocaleDateString("he-IL")
@@ -59,6 +60,16 @@ function LocationLinks({ address }: { address: string }) {
   )
 }
 
+function NoteBlock({ text }: { text?: string | null }) {
+  if (!text) return null
+  return (
+    <div className="mt-2 flex items-start gap-2 border-t border-zinc-100 pt-2 dark:border-zinc-700">
+      <span className="text-sm text-zinc-400">📝</span>
+      <TextWithLinks text={text} className="flex-1 text-sm text-zinc-600 dark:text-zinc-300" />
+    </div>
+  )
+}
+
 export function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () => void }) {
   const accommodations = normalizeAccommodations(trip.accommodation)
   const flightsData = normalizeFlights(trip.flights)
@@ -80,12 +91,12 @@ export function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () =>
     let id = Date.now()
     setEditFlights(
       flightsData.length > 0
-        ? flightsData.map(f => ({ _id: id++, flightNumber: f.flightNumber || "", departureAirport: f.departureAirport || "", departureTime: f.departureTime || "", arrivalAirport: f.arrivalAirport || "", arrivalTime: f.arrivalTime || "" }))
+        ? flightsData.map(f => ({ _id: id++, flightNumber: f.flightNumber || "", departureAirport: f.departureAirport || "", departureTime: f.departureTime || "", arrivalAirport: f.arrivalAirport || "", arrivalTime: f.arrivalTime || "", notes: f.notes || "" }))
         : [makeEmptyFlight()]
     )
     setEditAccommodations(
       accommodations.length > 0
-        ? accommodations.map(a => ({ _id: id++, name: a.name || "", address: a.address || "", website: a.website || "", checkIn: a.checkIn || "", checkOut: a.checkOut || "", contact: a.contact || "", bookingReference: a.bookingReference || "" }))
+        ? accommodations.map(a => ({ _id: id++, name: a.name || "", address: a.address || "", website: a.website || "", checkIn: a.checkIn || "", checkOut: a.checkOut || "", contact: a.contact || "", bookingReference: a.bookingReference || "", notes: a.notes || "" }))
         : [makeEmptyAccommodation()]
     )
     setEditCarRentals(
@@ -100,13 +111,13 @@ export function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () =>
     setIsSaving(true)
     try {
       const validFlights = editFlights
-        .filter(f => f.flightNumber || f.departureAirport || f.arrivalAirport)
+        .filter(f => f.flightNumber || f.departureAirport || f.arrivalAirport || f.notes)
         .map(({ _id, ...rest }) => rest)
       const validAccommodations = editAccommodations
-        .filter(a => a.name || a.address || a.website || a.checkIn || a.checkOut || a.contact || a.bookingReference)
+        .filter(a => a.name || a.address || a.website || a.checkIn || a.checkOut || a.contact || a.bookingReference || a.notes)
         .map(({ _id, ...rest }) => rest)
       const validCarRentals = editCarRentals
-        .filter(r => r.company || r.pickupLocation || r.returnLocation)
+        .filter(r => r.company || r.pickupLocation || r.returnLocation || r.additionalDetails)
         .map(({ _id, ...rest }) => rest)
 
       const body: Record<string, unknown> = {
@@ -250,6 +261,7 @@ export function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () =>
                   <InfoRow label="פרטי קשר" value={acc.contact} />
                   <InfoRow label="מספר הזמנה" value={acc.bookingReference} />
                 </div>
+                <NoteBlock text={acc.notes} />
               </div>
             ))}
           </div>
@@ -278,6 +290,7 @@ export function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () =>
                       : undefined}
                   />
                 </div>
+                <NoteBlock text={flight.notes} />
               </div>
             ))}
           </div>
@@ -299,7 +312,7 @@ export function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () =>
                   {rental.returnLocation && rental.returnLocation !== rental.pickupLocation && (
                     <LocationLinks address={rental.returnLocation} />
                   )}
-                  <InfoRow label="פרטים נוספים" value={rental.additionalDetails} />
+                  <NoteBlock text={rental.additionalDetails} />
                 </div>
               </div>
             ))}
