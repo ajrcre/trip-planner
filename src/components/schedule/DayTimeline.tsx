@@ -8,6 +8,7 @@ import type { TravelEndpointRef } from "@/types/travel-leg"
 import { ActivityCard, type ActivityData } from "./ActivityCard"
 import { supportsAlternatives, alternativePlanLabel } from "@/lib/activity-alternatives"
 import { MarkdownTextarea } from "@/components/shared/MarkdownTextarea"
+import { TextWithLinks } from "@/components/shared/TextWithLinks"
 
 interface AttractionOption {
   id: string
@@ -31,6 +32,7 @@ export interface DayPlanData {
   id: string
   date: string
   dayType: string
+  notes: string | null
   activities: ActivityData[]
 }
 
@@ -126,6 +128,9 @@ export function DayTimeline({
   const [addAlternatives, setAddAlternatives] = useState<AltDraft[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [isEditingDayNote, setIsEditingDayNote] = useState(false)
+  const [dayNoteDraft, setDayNoteDraft] = useState(dayPlan.notes ?? "")
+  const [isSavingDayNote, setIsSavingDayNote] = useState(false)
 
   const filteredAttractions = attractions.filter(
     (a) => a.status === "want" || a.status === "maybe"
@@ -440,6 +445,35 @@ export function DayTimeline({
     }
   }
 
+  async function handleSaveDayNote() {
+    setIsSavingDayNote(true)
+    try {
+      const res = await fetch(`/api/trips/${tripId}/schedule/${dayPlan.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: dayNoteDraft.trim() ? dayNoteDraft : null }),
+      })
+      if (res.ok) {
+        setIsEditingDayNote(false)
+        await onUpdate()
+      }
+    } catch (error) {
+      console.error("Failed to save day note:", error)
+    } finally {
+      setIsSavingDayNote(false)
+    }
+  }
+
+  function beginEditingDayNote() {
+    setDayNoteDraft(dayPlan.notes ?? "")
+    setIsEditingDayNote(true)
+  }
+
+  function cancelEditingDayNote() {
+    setDayNoteDraft(dayPlan.notes ?? "")
+    setIsEditingDayNote(false)
+  }
+
   async function handleRemoveAlternative(activityId: string, alternativeId: string) {
     const updatedActivities = sortAndReindex(
       dayPlan.activities.map((a) => {
@@ -535,6 +569,50 @@ export function DayTimeline({
 
   return (
     <div className="flex flex-col gap-3">
+      {isEditingDayNote ? (
+        <div className="flex flex-col gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-900/20">
+          <MarkdownTextarea value={dayNoteDraft} onChange={setDayNoteDraft} rows={4} placeholder="הערה כללית ליום..." />
+          <div className="flex gap-2">
+            <button
+              onClick={handleSaveDayNote}
+              disabled={isSavingDayNote}
+              className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 disabled:opacity-60"
+            >
+              {isSavingDayNote ? "שומר..." : "שמור"}
+            </button>
+            <button
+              onClick={cancelEditingDayNote}
+              disabled={isSavingDayNote}
+              className="rounded border border-zinc-300 px-3 py-1 text-xs hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-600 dark:hover:bg-zinc-700"
+            >
+              ביטול
+            </button>
+          </div>
+        </div>
+      ) : dayPlan.notes ? (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-900/20">
+          <span className="text-sm text-amber-600 dark:text-amber-400">📌</span>
+          <TextWithLinks text={dayPlan.notes} className="flex-1 text-sm text-amber-800 dark:text-amber-300" />
+          <button
+            onClick={beginEditingDayNote}
+            className="shrink-0 rounded p-1 text-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900/40"
+            title="עריכה"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={beginEditingDayNote}
+          className="self-start text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+        >
+          + הוסף הערה ליום
+        </button>
+      )}
+
       {dayPlan.activities.length === 0 ? (
         <div className="flex h-32 items-center justify-center rounded-lg border-2 border-dashed border-zinc-300 bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800/50">
           <span className="text-sm text-zinc-400">
