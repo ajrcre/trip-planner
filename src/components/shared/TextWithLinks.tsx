@@ -3,6 +3,8 @@
 import React, { useEffect, useRef, useState } from "react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import rehypeRaw from "rehype-raw"
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize"
 
 const markdownComponents = {
   a: ({ href, children }: React.ComponentProps<"a">) => (
@@ -26,6 +28,11 @@ const markdownComponents = {
   h3: ({ children }: React.ComponentProps<"h3">) => <span className="font-semibold">{children}</span>,
 }
 
+const sanitizeSchema = {
+  ...defaultSchema,
+  tagNames: [...(defaultSchema.tagNames ?? []), "u"],
+}
+
 export function TextWithLinks({ text, className }: { text: string; className?: string }) {
   const [expanded, setExpanded] = useState(false)
   const [canExpand, setCanExpand] = useState(false)
@@ -43,7 +50,11 @@ export function TextWithLinks({ text, className }: { text: string; className?: s
         ref={ref}
         className={`markdown-content ${expanded ? "" : "line-clamp-3"}`}
       >
-        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
+          components={markdownComponents}
+        >
           {text}
         </ReactMarkdown>
       </div>
