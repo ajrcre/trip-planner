@@ -1,6 +1,7 @@
 "use client"
 
 import { InputField } from "./InputField"
+import { MarkdownTextarea } from "@/components/shared/MarkdownTextarea"
 
 interface FlightFormData {
   _id: number
@@ -9,6 +10,7 @@ interface FlightFormData {
   departureTime: string
   arrivalAirport: string
   arrivalTime: string
+  notes: string
 }
 
 interface FlightsListProps {
@@ -18,7 +20,7 @@ interface FlightsListProps {
 
 let _nextFlightId = 1
 export function makeEmptyFlight(): FlightFormData {
-  return { _id: _nextFlightId++, flightNumber: "", departureAirport: "", departureTime: "", arrivalAirport: "", arrivalTime: "" }
+  return { _id: _nextFlightId++, flightNumber: "", departureAirport: "", departureTime: "", arrivalAirport: "", arrivalTime: "", notes: "" }
 }
 
 export function FlightsList({ items, onChange }: FlightsListProps) {
@@ -46,6 +48,10 @@ export function FlightsList({ items, onChange }: FlightsListProps) {
             <InputField label="שעת יציאה" type="datetime-local" value={flight.departureTime} onChange={(v) => updateItem(idx, "departureTime", v)} />
             <InputField label="שדה תעופה - נחיתה" value={flight.arrivalAirport} onChange={(v) => updateItem(idx, "arrivalAirport", v)} />
             <InputField label="שעת נחיתה" type="datetime-local" value={flight.arrivalTime} onChange={(v) => updateItem(idx, "arrivalTime", v)} />
+            <label className="flex flex-col gap-1 sm:col-span-2">
+              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">הערות</span>
+              <MarkdownTextarea value={flight.notes} onChange={(v) => updateItem(idx, "notes", v)} rows={2} />
+            </label>
           </div>
         </div>
       ))}

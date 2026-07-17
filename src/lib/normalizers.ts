@@ -4,6 +4,7 @@ export interface FlightLeg {
   departureTime?: string | null
   arrivalAirport?: string | null
   arrivalTime?: string | null
+  notes?: string | null
 }
 
 export interface CarRental {
@@ -13,6 +14,7 @@ export interface CarRental {
   returnLocation?: string | null
   returnTime?: string | null
   additionalDetails?: string | null
+  notes?: string | null
 }
 
 function isNonEmptyLeg(leg: unknown): leg is FlightLeg {

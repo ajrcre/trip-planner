@@ -1,6 +1,7 @@
 "use client"
 
 import { InputField } from "./InputField"
+import { MarkdownTextarea } from "@/components/shared/MarkdownTextarea"
 
 interface AccommodationFormData {
   _id: number
@@ -11,6 +12,7 @@ interface AccommodationFormData {
   checkOut: string
   contact: string
   bookingReference: string
+  notes: string
 }
 
 interface AccommodationsListProps {
@@ -20,7 +22,7 @@ interface AccommodationsListProps {
 
 let _nextId = 1
 export function makeEmptyAccommodation(): AccommodationFormData {
-  return { _id: _nextId++, name: "", address: "", website: "", checkIn: "", checkOut: "", contact: "", bookingReference: "" }
+  return { _id: _nextId++, name: "", address: "", website: "", checkIn: "", checkOut: "", contact: "", bookingReference: "", notes: "" }
 }
 
 export function AccommodationsList({ items, onChange }: AccommodationsListProps) {
@@ -49,6 +51,10 @@ export function AccommodationsList({ items, onChange }: AccommodationsListProps)
             <InputField label="צ'ק-אאוט" type="datetime-local" value={acc.checkOut} onChange={(v) => updateItem(idx, "checkOut", v)} />
             <InputField label="פרטי קשר" value={acc.contact} onChange={(v) => updateItem(idx, "contact", v)} />
             <InputField label="מספר הזמנה" value={acc.bookingReference} onChange={(v) => updateItem(idx, "bookingReference", v)} />
+            <label className="flex flex-col gap-1 sm:col-span-2">
+              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">הערות</span>
+              <MarkdownTextarea value={acc.notes} onChange={(v) => updateItem(idx, "notes", v)} rows={2} />
+            </label>
           </div>
         </div>
       ))}

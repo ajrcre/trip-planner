@@ -9,6 +9,7 @@ export interface Accommodation {
   checkOut?: string; // ISO date or datetime string
   contact?: string;
   bookingReference?: string;
+  notes?: string;
   coordinates?: {
     lat: number;
     lng: number;

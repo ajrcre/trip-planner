@@ -1,6 +1,7 @@
 "use client"
 
 import { InputField } from "./InputField"
+import { MarkdownTextarea } from "@/components/shared/MarkdownTextarea"
 
 interface CarRentalFormData {
   _id: number
@@ -49,12 +50,7 @@ export function CarRentalsList({ items, onChange }: CarRentalsListProps) {
             <InputField label="זמן החזרה" type="datetime-local" value={rental.returnTime} onChange={(v) => updateItem(idx, "returnTime", v)} />
             <label className="flex flex-col gap-1 sm:col-span-2">
               <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">פרטים נוספים</span>
-              <textarea
-                value={rental.additionalDetails}
-                onChange={(e) => updateItem(idx, "additionalDetails", e.target.value)}
-                rows={2}
-                className="rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-700"
-              />
+              <MarkdownTextarea value={rental.additionalDetails} onChange={(v) => updateItem(idx, "additionalDetails", v)} rows={2} />
             </label>
           </div>
         </div>

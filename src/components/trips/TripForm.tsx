@@ -71,6 +71,7 @@ export function TripForm() {
         departureTime: f.departureTime || "",
         arrivalAirport: f.arrivalAirport || "",
         arrivalTime: f.arrivalTime || "",
+        notes: "",
       }))
       setFlights((prev) => {
         const nonEmpty = prev.filter((f) => f.flightNumber || f.departureAirport || f.arrivalAirport)
@@ -90,6 +91,7 @@ export function TripForm() {
         contact: a.contact || "",
         bookingReference: a.bookingReference || "",
         website: "",
+        notes: "",
       }))
       setAccommodations((prev) => {
         const nonEmpty = prev.filter((a) => a.name || a.address || a.checkIn || a.checkOut)
