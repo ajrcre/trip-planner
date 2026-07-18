@@ -225,6 +225,9 @@ export function ActivityCard({
     )
   })()
 
+  /** True when `name` above fell back to the freeform notes text (custom/travel activities with no place) — that text should render as markdown, not plain text. */
+  const nameIsNotes = !!activity.notes && name === activity.notes
+
   const alternatives = activity.alternatives ?? []
   const canHaveAlternatives = supportsAlternatives(activity.type)
 
@@ -350,7 +353,11 @@ export function ActivityCard({
       {isEditing ? (
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">{name}</span>
+            {nameIsNotes ? (
+              <TextWithLinks text={activity.notes!} className="text-sm font-medium" />
+            ) : (
+              <span className="text-sm font-medium">{name}</span>
+            )}
           </div>
 
           <div className="flex gap-2">
@@ -618,7 +625,11 @@ export function ActivityCard({
             </span>
 
             <div className="flex items-center gap-2">
-              <span className="font-medium text-sm">{name}</span>
+              {nameIsNotes ? (
+                <TextWithLinks text={activity.notes!} className="font-medium text-sm" />
+              ) : (
+                <span className="font-medium text-sm">{name}</span>
+              )}
             </div>
 
             {(activity.type === "rest" || activity.type === "meal") && restAccommodation && (
