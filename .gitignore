@@ -45,3 +45,6 @@ next-env.d.ts
 
 # Visual brainstorming sessions
 .superpowers/
+
+# agent scratch output
+/scratch/

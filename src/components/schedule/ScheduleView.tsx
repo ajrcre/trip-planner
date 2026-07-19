@@ -9,6 +9,8 @@ import { WeatherForecast } from "./WeatherForecast"
 import type { DailyWeather, HourlyWeather } from "@/lib/weather"
 import { normalizeAccommodations, getAccommodationsForDay } from "@/lib/accommodations"
 import { normalizeCarRentals, normalizeFlights } from "@/lib/normalizers"
+import { dayTypeConfig, formatDayDate } from "@/lib/schedule-display"
+import { TripAgenda } from "./TripAgenda"
 
 interface Trip {
   id: string
@@ -24,33 +26,6 @@ interface Trip {
 
 interface ScheduleViewProps {
   trip: Trip
-}
-
-const dayTypeConfig: Record<string, { label: string; icon: string; accent: string }> = {
-  arrival: {
-    label: "\u05D9\u05D5\u05DD \u05D4\u05D2\u05E2\u05D4",
-    icon: "\u2708\uFE0F",
-    accent: "border-green-400 dark:border-green-600",
-  },
-  departure: {
-    label: "\u05D9\u05D5\u05DD \u05D7\u05D6\u05E8\u05D4",
-    icon: "\u{1F6EB}",
-    accent: "border-orange-400 dark:border-orange-600",
-  },
-  full_day: {
-    label: "\u05D9\u05D5\u05DD \u05DE\u05DC\u05D0",
-    icon: "\u2600\uFE0F",
-    accent: "border-blue-400 dark:border-blue-600",
-  },
-}
-
-function formatDayDate(dateStr: string) {
-  const date = new Date(dateStr)
-  return date.toLocaleDateString("he-IL", {
-    weekday: "short",
-    day: "numeric",
-    month: "numeric",
-  })
 }
 
 interface WeatherResponse {
@@ -78,6 +53,7 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
   const [weatherData, setWeatherData] = useState<WeatherResponse | null>(null)
   const [isWeatherLoading, setIsWeatherLoading] = useState(true)
   const [activeActivityId, setActiveActivityId] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<"day" | "agenda">("day")
 
 
   const handleMarkerClick = useCallback((activityId: string) => {
@@ -251,6 +227,39 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* View mode toggle: single day vs. whole-trip agenda */}
+      <div className="flex gap-1 self-start rounded-lg border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-700 dark:bg-zinc-800">
+        {([
+          { mode: "day" as const, label: "יום ביום" },
+          { mode: "agenda" as const, label: "כל הטיול" },
+        ]).map(({ mode, label }) => (
+          <button
+            key={mode}
+            onClick={() => setViewMode(mode)}
+            aria-pressed={viewMode === mode}
+            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+              viewMode === mode
+                ? "bg-white shadow-sm dark:bg-zinc-700"
+                : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {viewMode === "agenda" ? (
+        <TripAgenda
+          dayPlans={dayPlans}
+          weatherByDate={weatherByDate}
+          accommodations={accommodations}
+          onSelectDay={(dayId) => {
+            setActiveDay(dayId)
+            setViewMode("day")
+          }}
+        />
+      ) : (
+        <>
       {/* Day tabs */}
       <div className="flex gap-1 overflow-x-auto rounded-xl border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-700 dark:bg-zinc-800">
         {dayPlans.map((day) => {
@@ -347,6 +356,8 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
         </div>
 
       </div>
+        </>
+      )}
 
     </div>
   )
