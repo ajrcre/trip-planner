@@ -4,44 +4,7 @@ import type { Accommodation } from "@/lib/accommodations"
 import { parseDayHours, DAY_NAMES_EN, DAY_NAMES_HE, formatAmPmTimesInText } from "@/lib/time-parsing"
 import { googleMapsUrl } from "@/lib/url-helpers"
 import { alternativePlanLabel } from "@/lib/activity-alternatives"
-
-const dayTypeLabels: Record<string, { label: string; icon: string }> = {
-  arrival: { label: "יום הגעה", icon: "✈️" },
-  departure: { label: "יום חזרה", icon: "🛫" },
-  full_day: { label: "יום מלא", icon: "☀️" },
-}
-
-const typeConfig: Record<string, { icon: string; label: string }> = {
-  attraction: { icon: "🏛️", label: "אטרקציה" },
-  meal: { icon: "🍽️", label: "ארוחה" },
-  travel: { icon: "🚗", label: "נסיעה" },
-  rest: { icon: "😴", label: "מנוחה" },
-  custom: { icon: "📝", label: "אחר" },
-  grocery: { icon: "🛒", label: "קניות" },
-  flight_departure: { icon: "✈️", label: "המראה" },
-  flight_arrival: { icon: "🛬", label: "נחיתה" },
-  car_pickup: { icon: "📋", label: "איסוף רכב" },
-  car_return: { icon: "📋", label: "החזרת רכב" },
-  lodging: { icon: "🏨", label: "לינה" },
-}
-
-function getMealLabel(timeStart: string | null): string {
-  if (!timeStart) return "ארוחה"
-  const hour = parseInt(timeStart.split(":")[0], 10)
-  if (isNaN(hour)) return "ארוחה"
-  if (hour < 11) return "ארוחת בוקר"
-  if (hour < 16) return "ארוחת צהריים"
-  return "ארוחת ערב"
-}
-
-function formatDayDate(dateStr: string): string {
-  const date = new Date(dateStr)
-  return date.toLocaleDateString("he-IL", {
-    weekday: "short",
-    day: "numeric",
-    month: "numeric",
-  })
-}
+import { typeConfig, dayTypeConfig, getMealLabel, formatDayDate } from "@/lib/schedule-display"
 
 function getOpeningHoursForDate(openingHours: unknown, dateStr: string): string | null {
   const allHours = parseDayHours(openingHours)
@@ -142,7 +105,7 @@ export function formatDayForWhatsApp(
   dayPlan: DayPlanData,
   tripAccommodations: Accommodation[],
 ): string {
-  const dtConfig = dayTypeLabels[dayPlan.dayType] ?? dayTypeLabels.full_day
+  const dtConfig = dayTypeConfig[dayPlan.dayType] ?? dayTypeConfig.full_day
   const header = `*${formatDayDate(dayPlan.date)} — ${dtConfig.label}* ${dtConfig.icon}`
 
   const blocks: string[] = [header]

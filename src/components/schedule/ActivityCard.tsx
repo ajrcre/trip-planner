@@ -10,6 +10,7 @@ import { OpeningHoursSection } from "./OpeningHoursSection"
 import { TextWithLinks } from "@/components/shared/TextWithLinks"
 import { MarkdownTextarea } from "@/components/shared/MarkdownTextarea"
 import { alternativePlanLabel, supportsAlternatives } from "@/lib/activity-alternatives"
+import { typeConfig, getMealLabel } from "@/lib/schedule-display"
 
 export interface PlaceData {
   id: string
@@ -54,30 +55,6 @@ export interface ActivityData {
   drivingTimesFromLodging?: { accommodationName: string; minutes: number }[]
   travelLeg?: TravelLegStored | null
   alternatives?: ActivityAlternativeData[]
-}
-
-const typeConfig: Record<string, { icon: string; label: string }> = {
-  attraction: { icon: "\u{1F3DB}\uFE0F", label: "אטרקציה" },
-  meal: { icon: "\u{1F37D}\uFE0F", label: "ארוחה" },
-  travel: { icon: "\u{1F697}", label: "נסיעה" },
-  rest: { icon: "\u{1F634}", label: "מנוחה" },
-  custom: { icon: "\u{1F4DD}", label: "אחר" },
-  grocery: { icon: "🛒", label: "קניות" },
-  flight_departure: { icon: "✈️", label: "המראה" },
-  flight_arrival: { icon: "🛬", label: "נחיתה" },
-  car_pickup: { icon: "📋", label: "איסוף רכב" },
-  car_return: { icon: "📋", label: "החזרת רכב" },
-  lodging: { icon: "🏨", label: "לינה" },
-}
-
-/** Infer meal label from start time */
-function getMealLabel(timeStart: string | null): string {
-  if (!timeStart) return "ארוחה"
-  const hour = parseInt(timeStart.split(":")[0], 10)
-  if (isNaN(hour)) return "ארוחה"
-  if (hour < 11) return "ארוחת בוקר"
-  if (hour < 16) return "ארוחת צהריים"
-  return "ארוחת ערב"
 }
 
 function getHostname(url: string): string {
