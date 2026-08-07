@@ -120,6 +120,7 @@ model Trip {
   dayPlans        DayPlan[]
   packingItems    PackingItem[]
   shoppingItems   ShoppingItem[]
+  todoCategories  TodoCategory[]
   shares          TripShare[]
   familyProfileId String?        @unique
   familyProfile   FamilyProfile? @relation(fields: [familyProfileId], references: [id])
@@ -382,4 +383,30 @@ model ShoppingItem {
   localLanguage   String?
 
   sortOrder Int @default(0)
+}
+
+model TodoCategory {
+  id     String @id @default(cuid())
+  tripId String
+  trip   Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  name      String
+  sortOrder Int    @default(0)
+
+  items TodoItem[]
+
+  @@unique([tripId, name])
+  @@index([tripId])
+}
+
+model TodoItem {
+  id         String       @id @default(cuid())
+  categoryId String
+  category   TodoCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  item      String
+  checked   Boolean @default(false)
+  sortOrder Int     @default(0)
+
+  @@index([categoryId])
 }

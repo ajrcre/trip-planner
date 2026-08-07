@@ -154,6 +154,11 @@ interface TripData {
     item: string
     checked: boolean
   }>
+  todoItems: Array<{
+    category: string
+    item: string
+    checked: boolean
+  }>
 }
 
 function formatDate(dateStr: string): string {
@@ -731,6 +736,50 @@ function buildShoppingSection(items: TripData["shoppingItems"]): Paragraph[] {
   return paragraphs
 }
 
+function buildTodoSection(items: TripData["todoItems"]): Paragraph[] {
+  if (!items || items.length === 0) return []
+  const paragraphs: Paragraph[] = [createHeading("רשימת מטלות", HeadingLevel.HEADING_2)]
+
+  // Items arrive already ordered by category sortOrder, so a Map preserves the
+  // authored category order.
+  const byCategory = new Map<string, typeof items>()
+  for (const item of items) {
+    const cat = item.category || "כללי"
+    if (!byCategory.has(cat)) byCategory.set(cat, [])
+    byCategory.get(cat)!.push(item)
+  }
+
+  for (const [category, catItems] of byCategory) {
+    paragraphs.push(
+      new Paragraph({
+        bidirectional: true,
+        alignment: AlignmentType.RIGHT,
+        spacing: { before: 120 },
+        children: [new TextRun({ text: category, bold: true, rightToLeft: true })],
+      })
+    )
+    for (const item of catItems) {
+      const checkmark = item.checked ? "[x]" : "[ ]"
+      paragraphs.push(
+        new Paragraph({
+          bidirectional: true,
+          alignment: AlignmentType.RIGHT,
+          bullet: { level: 0 },
+          children: [
+            new TextRun({
+              text: `${checkmark} ${item.item}`,
+              rightToLeft: true,
+            }),
+          ],
+        })
+      )
+    }
+  }
+
+  paragraphs.push(new Paragraph({ text: "" }))
+  return paragraphs
+}
+
 export async function generateTripDocx(trip: TripData): Promise<Buffer> {
   const children: (Paragraph | Table)[] = [
     // Title - centered
@@ -772,6 +821,7 @@ export async function generateTripDocx(trip: TripData): Promise<Buffer> {
     ...buildRestaurantsSection(trip.restaurants),
     ...buildPackingSection(trip.packingItems),
     ...buildShoppingSection(trip.shoppingItems),
+    ...buildTodoSection(trip.todoItems),
   ]
 
   const doc = new Document({

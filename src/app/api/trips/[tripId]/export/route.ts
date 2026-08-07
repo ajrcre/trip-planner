@@ -56,6 +56,10 @@ export async function GET(
       shoppingItems: {
         orderBy: { sortOrder: "asc" },
       },
+      todoCategories: {
+        include: { items: { orderBy: { sortOrder: "asc" as const } } },
+        orderBy: { sortOrder: "asc" },
+      },
     },
   })
 
@@ -100,6 +104,13 @@ export async function GET(
     })),
     packingItems: trip.packingItems,
     shoppingItems: trip.shoppingItems,
+    todoItems: trip.todoCategories.flatMap((c) =>
+      c.items.map((i) => ({
+        category: c.name,
+        item: i.item,
+        checked: i.checked,
+      }))
+    ),
   })
 
   const filename = encodeURIComponent(`${trip.name}.docx`)
