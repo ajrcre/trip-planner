@@ -6,12 +6,19 @@ import { SpeakButton } from "@/components/shared/SpeakButton"
 interface ChecklistItem {
   id: string
   category: string
+  categoryId?: string
   item: string
   checked: boolean
   forMember?: string | null
   localName?: string | null
   transliteration?: string | null
   localLanguage?: string | null
+  sortOrder: number
+}
+
+interface ChecklistCategory {
+  id: string
+  name: string
   sortOrder: number
 }
 
@@ -22,7 +29,13 @@ export interface TranslationConfig {
 }
 
 export interface ChecklistConfig {
-  apiPath: "packing" | "shopping"
+  apiPath: "packing" | "shopping" | "todos"
+  /**
+   * When true, the API owns the category list as real rows: categories keep
+   * their authored order, can be empty, and can be deleted. When false (the
+   * packing/shopping default) categories are derived from the items themselves.
+   */
+  managedCategories?: boolean
   colorScheme: { primary: string; light: string }
   labels: {
     progressLabel: string
@@ -51,6 +64,19 @@ function useColorClasses(colorScheme: ChecklistConfig["colorScheme"]) {
       newCategoryBorder: "hover:border-green-400 hover:text-green-500",
     }
   }
+  if (primary === "purple") {
+    return {
+      spinnerBorder: "border-purple-500",
+      initButton: "bg-purple-600 hover:bg-purple-700",
+      progressBar: "bg-purple-500",
+      checkbox: "text-purple-600 focus:ring-purple-500",
+      memberBadge: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
+      addButton: "bg-purple-50 text-purple-600 hover:bg-purple-100 dark:bg-purple-900/20 dark:text-purple-400 dark:hover:bg-purple-900/40",
+      focusBorder: "focus:border-purple-500",
+      categoryButton: "bg-purple-600 hover:bg-purple-700",
+      newCategoryBorder: "hover:border-purple-400 hover:text-purple-500",
+    }
+  }
   // Default: blue
   return {
     spinnerBorder: "border-blue-500",
@@ -75,6 +101,7 @@ export function ChecklistManager({
   translation?: TranslationConfig
 }) {
   const [items, setItems] = useState<ChecklistItem[]>([])
+  const [categories, setCategories] = useState<ChecklistCategory[]>([])
   const [loading, setLoading] = useState(true)
   const [openCategories, setOpenCategories] = useState<Set<string>>(new Set())
   const [newItemText, setNewItemText] = useState<Record<string, string>>({})
@@ -85,7 +112,7 @@ export function ChecklistManager({
   const [pendingTranslations, setPendingTranslations] = useState<Set<string>>(new Set())
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const { apiPath, labels } = config
+  const { apiPath, labels, managedCategories } = config
   const colors = useColorClasses(config.colorScheme)
   const apiBase = `/api/trips/${tripId}/${apiPath}`
 
@@ -123,10 +150,12 @@ export function ChecklistManager({
       if (res.ok) {
         const data = await res.json()
         setItems(data.items)
-        const categories = new Set<string>(
-          data.items.map((i: ChecklistItem) => i.category)
-        )
-        setOpenCategories(categories)
+        setCategories(data.categories ?? [])
+        const names = new Set<string>([
+          ...(data.categories ?? []).map((c: ChecklistCategory) => c.name),
+          ...data.items.map((i: ChecklistItem) => i.category),
+        ])
+        setOpenCategories(names)
       }
     } catch (error) {
       console.error(`Failed to fetch ${apiPath} items:`, error)
@@ -195,11 +224,15 @@ export function ChecklistManager({
 
     setNewItemText((prev) => ({ ...prev, [category]: "" }))
 
+    const payload = managedCategories
+      ? { categoryId: categories.find((c) => c.name === category)?.id, item: text }
+      : { category, item: text }
+
     try {
       const res = await fetch(apiBase, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category, item: text }),
+        body: JSON.stringify(payload),
       })
       if (res.ok) {
         const newItem = await res.json() as ChecklistItem
@@ -210,6 +243,49 @@ export function ChecklistManager({
       }
     } catch (error) {
       console.error("Failed to add item:", error)
+    }
+  }
+
+  // Managed categories are real rows, so they can be created empty — no first
+  // item required, unlike the derived-category lists.
+  const addCategory = async () => {
+    const name = newCategoryName.trim()
+    if (!name) return
+
+    setNewCategoryName("")
+    setShowNewCategory(false)
+
+    try {
+      const res = await fetch(apiBase, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "add-category", name }),
+      })
+      if (res.ok) {
+        const newCategory = (await res.json()) as ChecklistCategory
+        setCategories((prev) => [...prev, newCategory])
+        setOpenCategories((prev) => new Set([...prev, newCategory.name]))
+      }
+    } catch (error) {
+      console.error("Failed to add category:", error)
+    }
+  }
+
+  const deleteCategory = async (category: ChecklistCategory) => {
+    if (
+      !confirm(`למחוק את הקטגוריה "${category.name}" ואת כל הפריטים שבה?`)
+    ) {
+      return
+    }
+
+    setCategories((prev) => prev.filter((c) => c.id !== category.id))
+    setItems((prev) => prev.filter((i) => i.categoryId !== category.id))
+
+    try {
+      await fetch(`${apiBase}?categoryId=${category.id}`, { method: "DELETE" })
+    } catch (error) {
+      console.error("Failed to delete category:", error)
+      await fetchItems()
     }
   }
 
@@ -262,6 +338,25 @@ export function ChecklistManager({
     grouped[item.category].push(item)
   }
 
+  // With managed categories the server's authored order wins and empty
+  // categories still get a section; otherwise fall back to the item-derived
+  // grouping (alphabetical, no empties).
+  const sections: Array<{
+    category: ChecklistCategory | null
+    name: string
+    items: ChecklistItem[]
+  }> = managedCategories
+    ? categories.map((c) => ({
+        category: c,
+        name: c.name,
+        items: grouped[c.name] ?? [],
+      }))
+    : Object.entries(grouped).map(([name, catItems]) => ({
+        category: null,
+        name,
+        items: catItems,
+      }))
+
   const totalItems = items.length
   const checkedItems = items.filter((i) => i.checked).length
 
@@ -273,7 +368,8 @@ export function ChecklistManager({
     )
   }
 
-  if (items.length === 0) {
+  // A managed list that still has categories is not empty, even with no items.
+  if (items.length === 0 && categories.length === 0) {
     return (
       <div className="flex flex-col items-center gap-4 rounded-xl border border-zinc-200 bg-white p-10 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
         <p className="text-zinc-500">{labels.emptyState}</p>
@@ -331,37 +427,50 @@ export function ChecklistManager({
       </div>
 
       {/* Category sections */}
-      {Object.entries(grouped).map(([category, categoryItems]) => {
+      {sections.map(({ category: categoryRow, name: category, items: categoryItems }) => {
         const isOpen = openCategories.has(category)
         const catChecked = categoryItems.filter((i) => i.checked).length
         const catTotal = categoryItems.length
 
         return (
           <div
-            key={category}
+            key={categoryRow?.id ?? category}
             className="rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-800"
           >
             {/* Category header */}
-            <button
-              onClick={() => toggleCategory(category)}
-              className="flex w-full items-center justify-between p-4 text-right hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <svg
-                  className={`h-4 w-4 text-zinc-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={2}
-                  stroke="currentColor"
+            <div className="flex items-center hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors">
+              <button
+                onClick={() => toggleCategory(category)}
+                className="flex flex-1 items-center justify-between p-4 text-right"
+              >
+                <div className="flex items-center gap-2">
+                  <svg
+                    className={`h-4 w-4 text-zinc-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                  </svg>
+                  <span className="text-xs text-zinc-500">
+                    {catChecked}/{catTotal}
+                  </span>
+                </div>
+                <h3 className="font-semibold">{category}</h3>
+              </button>
+              {categoryRow && (
+                <button
+                  onClick={() => deleteCategory(categoryRow)}
+                  className="px-3 text-zinc-300 hover:text-red-500 transition-colors"
+                  title="מחק קטגוריה"
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                </svg>
-                <span className="text-xs text-zinc-500">
-                  {catChecked}/{catTotal}
-                </span>
-              </div>
-              <h3 className="font-semibold">{category}</h3>
-            </button>
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                  </svg>
+                </button>
+              )}
+            </div>
 
             {/* Items */}
             {isOpen && (
@@ -475,21 +584,26 @@ export function ChecklistManager({
               placeholder="שם קטגוריה..."
               value={newCategoryName}
               onChange={(e) => setNewCategoryName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && managedCategories) addCategory()
+              }}
               className={`rounded-md border border-zinc-200 bg-transparent px-3 py-1.5 text-sm text-right outline-none ${colors.focusBorder} dark:border-zinc-600`}
               dir="rtl"
               autoFocus
             />
-            <input
-              type="text"
-              placeholder="פריט ראשון..."
-              value={newCategoryItemText}
-              onChange={(e) => setNewCategoryItemText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") addNewCategoryItem()
-              }}
-              className={`rounded-md border border-zinc-200 bg-transparent px-3 py-1.5 text-sm text-right outline-none ${colors.focusBorder} dark:border-zinc-600`}
-              dir="rtl"
-            />
+            {!managedCategories && (
+              <input
+                type="text"
+                placeholder="פריט ראשון..."
+                value={newCategoryItemText}
+                onChange={(e) => setNewCategoryItemText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") addNewCategoryItem()
+                }}
+                className={`rounded-md border border-zinc-200 bg-transparent px-3 py-1.5 text-sm text-right outline-none ${colors.focusBorder} dark:border-zinc-600`}
+                dir="rtl"
+              />
+            )}
             <div className="flex gap-2 justify-end">
               <button
                 onClick={() => setShowNewCategory(false)}
@@ -498,8 +612,11 @@ export function ChecklistManager({
                 ביטול
               </button>
               <button
-                onClick={addNewCategoryItem}
-                disabled={!newCategoryName.trim() || !newCategoryItemText.trim()}
+                onClick={managedCategories ? addCategory : addNewCategoryItem}
+                disabled={
+                  !newCategoryName.trim() ||
+                  (!managedCategories && !newCategoryItemText.trim())
+                }
                 className={`rounded-md ${colors.categoryButton} px-3 py-1 text-xs font-medium text-white disabled:opacity-40 transition-colors`}
               >
                 הוסף קטגוריה
