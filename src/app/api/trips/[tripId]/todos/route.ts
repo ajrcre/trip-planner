@@ -76,21 +76,25 @@ export async function POST(
       )
     }
 
-    for (const [index, group] of defaultTodoTemplate.entries()) {
-      await prisma.todoCategory.create({
-        data: {
-          tripId,
-          name: group.category,
-          sortOrder: index,
-          items: {
-            create: group.items.map((item, itemIndex) => ({
-              item,
-              sortOrder: itemIndex,
-            })),
+    // All-or-nothing: a partial seed would leave categories behind that make
+    // the guard above reject every later attempt to seed properly.
+    await prisma.$transaction(
+      defaultTodoTemplate.map((group, index) =>
+        prisma.todoCategory.create({
+          data: {
+            tripId,
+            name: group.category,
+            sortOrder: index,
+            items: {
+              create: group.items.map((item, itemIndex) => ({
+                item,
+                sortOrder: itemIndex,
+              })),
+            },
           },
-        },
-      })
-    }
+        })
+      )
+    )
 
     return NextResponse.json(await readList(tripId), { status: 201 })
   }
