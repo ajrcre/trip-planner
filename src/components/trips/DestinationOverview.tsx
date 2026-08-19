@@ -106,6 +106,11 @@ export function DestinationOverview({
             src={`https://flagcdn.com/w160/${info.countryCode}.png`}
             alt={info.countryNameHebrew}
             className="h-12 shrink-0 rounded shadow-sm"
+            // Served from a CDN the service worker cannot cache, so offline this
+            // would render as a broken-image icon next to the destination name.
+            onError={(e) => {
+              e.currentTarget.style.display = "none"
+            }}
           />
           <div className="min-w-0">
             <h2 className="truncate text-2xl font-bold text-zinc-900 dark:text-zinc-100">

@@ -3,8 +3,22 @@
 import { useSession, signIn, signOut } from "next-auth/react"
 import Image from "next/image"
 
+import { purgeOfflineCaches } from "@/lib/offline-sync"
+import { clearQueue } from "@/lib/offline-queue"
+
 export function LoginButton() {
   const { data: session, status } = useSession()
+
+  /**
+   * Cache storage is per-origin, not per-account, so the offline copy of this
+   * user's trips has to go with them. Otherwise the next person to sign in on
+   * a shared family device could read them offline.
+   */
+  const handleSignOut = async () => {
+    clearQueue()
+    await purgeOfflineCaches()
+    await signOut()
+  }
 
   if (status === "loading") {
     return (
@@ -26,7 +40,7 @@ export function LoginButton() {
         )}
         <span className="text-sm font-medium">{session.user.name}</span>
         <button
-          onClick={() => signOut()}
+          onClick={handleSignOut}
           className="rounded-lg bg-zinc-200 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600"
         >
           התנתק

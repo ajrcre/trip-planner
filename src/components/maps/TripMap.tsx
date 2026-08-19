@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react"
 import { loadMapsLibrary, loadMarkerLibrary } from "@/lib/google-maps-loader"
+import { useOnlineStatus } from "@/hooks/useOnlineStatus"
+import { OfflinePlaceholder } from "@/components/offline/OfflinePlaceholder"
 
 interface MarkerData {
   lat: number
@@ -27,6 +29,7 @@ export function TripMap({
   const mapRef = useRef<HTMLDivElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const online = useOnlineStatus()
 
   useEffect(() => {
     const markers: google.maps.marker.AdvancedMarkerElement[] = []
@@ -119,6 +122,12 @@ export function TripMap({
       }
     }
   }, [center, accommodations, attractions, restaurants, zoom])
+
+  // Checked before `error` so a lost connection reads as an explanation rather
+  // than a failure. The place lists around the map stay fully readable.
+  if (!online) {
+    return <OfflinePlaceholder className="h-64" />
+  }
 
   if (error) {
     return (

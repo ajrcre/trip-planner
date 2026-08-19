@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import type { TripRole } from "@/types/sharing"
+import { useOnlineStatus } from "@/hooks/useOnlineStatus"
 
 interface FamilyMember {
   id: string
@@ -539,8 +540,12 @@ export function FamilyProfileTab({ tripId, role }: { tripId: string; role: TripR
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
+  const online = useOnlineStatus()
 
-  const canEdit = role === "owner" || role === "editor"
+  // Every editor in this tab already keys off canEdit, so folding connectivity
+  // into it turns the whole profile read-only offline in one place — including
+  // the existing "צפייה בלבד" badge, which is exactly the right message.
+  const canEdit = (role === "owner" || role === "editor") && online
 
   const loadProfile = useCallback(async () => {
     const res = await fetch(`/api/trips/${tripId}/profile`)

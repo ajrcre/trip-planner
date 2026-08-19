@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import type { TripRole, TripMember, PendingInvite, TripMembersResponse } from "@/types/sharing"
+import { useOnlineStatus } from "@/hooks/useOnlineStatus"
 
 function Avatar({ name, image }: { name: string | null; image: string | null }) {
   const [broken, setBroken] = useState(false)
@@ -41,6 +42,7 @@ export function ShareExportButtons({
   tripName: string
   role: TripRole
 }) {
+  const online = useOnlineStatus()
   const [exportLoading, setExportLoading] = useState(false)
 
   // Members panel state
@@ -150,14 +152,19 @@ export function ShareExportButtons({
             setShowMembersPanel((prev) => !prev)
             if (!showMembersPanel) loadMembers()
           }}
-          className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600"
+          disabled={!online}
+          title={online ? undefined : "ניהול משתתפים דורש חיבור"}
+          className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600"
         >
           משתתפים
         </button>
       )}
+      {/* Export streams a .docx from the server; there is nothing to serve from
+          cache, so it stays disabled rather than failing mid-download. */}
       <button
         onClick={handleExport}
-        disabled={exportLoading}
+        disabled={exportLoading || !online}
+        title={online ? undefined : "ייצוא דורש חיבור"}
         className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600"
       >
         {exportLoading ? "..." : "ייצא"}

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { defaultTodoTemplate } from "@/lib/list-templates"
 import { requireTripAccess } from "@/lib/trip-access"
+import { resolveChecklistWrite } from "@/lib/checklist-write"
 
 /**
  * Unlike the packing/shopping lists — where a category is just a string column
@@ -204,18 +205,18 @@ export async function PUT(
   }
 
   const body = await request.json()
-  const updateData: { checked?: boolean; item?: string } = {}
+  const write = resolveChecklistWrite(body, existing)
 
-  if (typeof body.checked === "boolean") {
-    updateData.checked = body.checked
-  }
-  if (typeof body.item === "string") {
-    updateData.item = body.item
+  if (write.kind === "conflict") {
+    return NextResponse.json(
+      { ...existing, category: existing.category.name },
+      { status: 409 }
+    )
   }
 
   const updated = await prisma.todoItem.update({
     where: { id: itemId },
-    data: updateData,
+    data: write.data,
   })
 
   return NextResponse.json({ ...updated, category: existing.category.name })

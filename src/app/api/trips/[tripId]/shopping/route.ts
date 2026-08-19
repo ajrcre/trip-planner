@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { defaultShoppingTemplate } from "@/lib/list-templates"
 import { requireTripAccess } from "@/lib/trip-access"
 import { translateShoppingItems } from "@/lib/gemini"
+import { resolveChecklistWrite } from "@/lib/checklist-write"
 
 export async function GET(
   _request: Request,
@@ -176,18 +177,15 @@ export async function PUT(
   }
 
   const body = await request.json()
-  const updateData: { checked?: boolean; item?: string } = {}
+  const write = resolveChecklistWrite(body, existing)
 
-  if (typeof body.checked === "boolean") {
-    updateData.checked = body.checked
-  }
-  if (typeof body.item === "string") {
-    updateData.item = body.item
+  if (write.kind === "conflict") {
+    return NextResponse.json(existing, { status: 409 })
   }
 
   const updated = await prisma.shoppingItem.update({
     where: { id: itemId },
-    data: updateData,
+    data: write.data,
   })
 
   return NextResponse.json(updated)

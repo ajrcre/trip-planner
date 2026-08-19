@@ -9,6 +9,8 @@ import {
   useMap,
 } from "@vis.gl/react-google-maps"
 import type { ActivityData } from "./ActivityCard"
+import { useOnlineStatus } from "@/hooks/useOnlineStatus"
+import { OfflinePlaceholder } from "@/components/offline/OfflinePlaceholder"
 
 interface ItineraryMapProps {
   activities: ActivityData[]
@@ -373,6 +375,7 @@ export function ItineraryMap({
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [showAllDays, setShowAllDays] = useState(false)
   const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null)
+  const online = useOnlineStatus()
 
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_CLIENT_KEY ?? ""
 
@@ -542,7 +545,11 @@ export function ItineraryMap({
         </button>
       </div>
 
-      {/* Map */}
+      {/* Map. Offline the Maps SDK cannot load at all, so the placeholder stands
+          in for it and the day's activity list below stays the usable view. */}
+      {!online ? (
+        <OfflinePlaceholder className="h-[400px]" />
+      ) : (
       <div className="h-[400px] overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
         <APIProvider apiKey={apiKey}>
           <Map
@@ -616,6 +623,7 @@ export function ItineraryMap({
           </Map>
         </APIProvider>
       </div>
+      )}
 
       {/* Legend */}
       {markersData.length === 0 && (

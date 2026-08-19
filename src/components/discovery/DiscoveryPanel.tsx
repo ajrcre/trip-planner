@@ -2,6 +2,9 @@
 
 import { useState } from "react"
 
+import { useOnlineStatus } from "@/hooks/useOnlineStatus"
+import { OfflinePlaceholder } from "@/components/offline/OfflinePlaceholder"
+
 interface DiscoveryItem {
   googlePlaceId: string
   name: string
@@ -54,6 +57,7 @@ export function DiscoveryPanel<T extends DiscoveryItem>({
     emptyStateText,
   } = config
 
+  const online = useOnlineStatus()
   const [searchQuery, setSearchQuery] = useState("")
   const [results, setResults] = useState<T[]>([])
   const [loading, setLoading] = useState(false)
@@ -135,6 +139,17 @@ export function DiscoveryPanel<T extends DiscoveryItem>({
     }
     return a.name.localeCompare(b.name)
   })
+
+  // Discovery is a live Google Places / TripAdvisor search, so there is nothing
+  // meaningful to serve from cache — say so rather than let the search fail.
+  if (!online) {
+    return (
+      <OfflinePlaceholder
+        message="חיפוש מקומות חדשים דורש חיבור לאינטרנט"
+        className="h-40"
+      />
+    )
+  }
 
   return (
     <div className="flex flex-col gap-4">

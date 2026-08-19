@@ -81,7 +81,7 @@ export function AttractionTable({
     sortComparators,
   })
 
-  const { updatingId, handleStatusChange, handleDelete, handleFieldUpdate } = useItemActions({
+  const { updatingId, readOnly, handleStatusChange, handleDelete, handleFieldUpdate } = useItemActions({
     tripId,
     entityPath: "attractions",
     onUpdate,
@@ -101,7 +101,7 @@ export function AttractionTable({
     travelTimeColumn<SavedAttraction>(),
     ratingColumn<SavedAttraction>(),
     openingHoursColumn<SavedAttraction>(),
-    statusColumn<SavedAttraction>(handleStatusChange, updatingId),
+    statusColumn<SavedAttraction>(handleStatusChange, updatingId, readOnly),
     linksColumn<SavedAttraction>(),
     // Notes column (attraction-specific)
     {
@@ -153,7 +153,7 @@ export function AttractionTable({
         )
       },
     },
-    deleteColumn<SavedAttraction>(handleDelete, updatingId),
+    deleteColumn<SavedAttraction>(handleDelete, updatingId, readOnly),
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [updatingId, editingNotesId, notesValue])
 

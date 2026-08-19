@@ -13,6 +13,7 @@ import { normalizeAccommodations } from "@/lib/accommodations"
 import type { Trip } from "../TripDashboard"
 import { formatUiDateTime } from "@/lib/format-time"
 import { TextWithLinks } from "@/components/shared/TextWithLinks"
+import { useOnlineStatus } from "@/hooks/useOnlineStatus"
 
 function formatDate(date: string) {
   return new Date(date).toLocaleDateString("he-IL")
@@ -75,6 +76,7 @@ export function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () =>
   const flightsData = normalizeFlights(trip.flights)
   const carRentalsData = normalizeCarRentals(trip.carRental)
 
+  const online = useOnlineStatus()
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
@@ -225,7 +227,9 @@ export function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () =>
       <div className="flex justify-end">
         <button
           onClick={handleStartEdit}
-          className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600"
+          disabled={!online}
+          title={online ? undefined : "לא ניתן לערוך ללא חיבור"}
+          className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600"
         >
           ערוך פרטים
         </button>

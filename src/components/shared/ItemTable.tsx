@@ -189,6 +189,7 @@ export function openingHoursColumn<T extends BaseItem>(): ColumnDef<T> {
 export function statusColumn<T extends BaseItem>(
   handleStatusChange: (id: string, status: string) => void,
   updatingId: string | null,
+  readOnly = false,
 ): ColumnDef<T> {
   return {
     key: "status",
@@ -197,7 +198,8 @@ export function statusColumn<T extends BaseItem>(
       <select
         value={item.status}
         onChange={(e) => handleStatusChange(item.id, e.target.value)}
-        disabled={updatingId === item.id}
+        disabled={readOnly || updatingId === item.id}
+        title={readOnly ? "לא ניתן לערוך ללא חיבור" : undefined}
         className={`rounded-full border-0 px-2 py-0.5 text-xs font-medium ${
           statusColors[item.status] ?? statusColors.maybe
         }`}
@@ -253,6 +255,7 @@ export function linksColumn<T extends BaseItem>(): ColumnDef<T> {
 export function deleteColumn<T extends BaseItem>(
   handleDelete: (id: string) => void,
   updatingId: string | null,
+  readOnly = false,
 ): ColumnDef<T> {
   return {
     key: "actions",
@@ -264,8 +267,9 @@ export function deleteColumn<T extends BaseItem>(
           if (!confirm("למחוק את הפריט?")) return
           handleDelete(item.id)
         }}
-        disabled={updatingId === item.id}
-        className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+        disabled={readOnly || updatingId === item.id}
+        title={readOnly ? "לא ניתן למחוק ללא חיבור" : undefined}
+        className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:hover:bg-transparent dark:text-red-400 dark:hover:bg-red-900/20"
       >
         מחק
       </button>

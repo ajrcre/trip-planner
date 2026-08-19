@@ -367,6 +367,11 @@ model PackingItem {
   checked   Boolean @default(false)
   forMember String?
 
+  // Set only when `checked` changes, so an offline toggle replayed later can be
+  // rejected if someone already changed the box more recently. Deliberately not
+  // a generic @updatedAt: renames must not count as checkbox changes.
+  checkedAt DateTime?
+
   sortOrder Int @default(0)
 }
 
@@ -381,6 +386,11 @@ model ShoppingItem {
   localName       String?
   transliteration String?
   localLanguage   String?
+
+  // See PackingItem.checkedAt. Matters most here: the background translation job
+  // writes localName/transliteration after creation, and an @updatedAt would let
+  // that reject an unrelated queued toggle.
+  checkedAt DateTime?
 
   sortOrder Int @default(0)
 }
@@ -407,6 +417,9 @@ model TodoItem {
   item      String
   checked   Boolean @default(false)
   sortOrder Int     @default(0)
+
+  // See PackingItem.checkedAt.
+  checkedAt DateTime?
 
   @@index([categoryId])
 }

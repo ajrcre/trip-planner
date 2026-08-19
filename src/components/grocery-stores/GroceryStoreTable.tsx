@@ -55,7 +55,7 @@ export function GroceryStoreTable({
     sortComparators,
   })
 
-  const { updatingId, handleStatusChange, handleDelete } = useItemActions({
+  const { updatingId, readOnly, handleStatusChange, handleDelete } = useItemActions({
     tripId,
     entityPath: "grocery-stores",
     onUpdate,
@@ -78,9 +78,9 @@ export function GroceryStoreTable({
     travelTimeColumn<SavedGroceryStore>(),
     ratingColumn<SavedGroceryStore>(),
     openingHoursColumn<SavedGroceryStore>(),
-    statusColumn<SavedGroceryStore>(handleStatusChange, updatingId),
+    statusColumn<SavedGroceryStore>(handleStatusChange, updatingId, readOnly),
     linksColumn<SavedGroceryStore>(),
-    deleteColumn<SavedGroceryStore>(handleDelete, updatingId),
+    deleteColumn<SavedGroceryStore>(handleDelete, updatingId, readOnly),
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [updatingId])
 

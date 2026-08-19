@@ -11,6 +11,7 @@ import { TextWithLinks } from "@/components/shared/TextWithLinks"
 import { MarkdownTextarea } from "@/components/shared/MarkdownTextarea"
 import { alternativePlanLabel, supportsAlternatives } from "@/lib/activity-alternatives"
 import { typeConfig, getMealLabel } from "@/lib/schedule-display"
+import { useOnlineStatus } from "@/hooks/useOnlineStatus"
 
 export interface PlaceData {
   id: string
@@ -134,6 +135,7 @@ export function ActivityCard({
   onRemoveAlternative,
   onAddAlternative,
 }: ActivityCardProps) {
+  const online = useOnlineStatus()
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
@@ -963,8 +965,9 @@ export function ActivityCard({
               <>
                 <button
                   onClick={beginEditing}
-                  className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-700 dark:hover:text-zinc-300"
-                  title="עריכה"
+                  disabled={!online}
+                  className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 disabled:opacity-40 dark:hover:bg-zinc-700 dark:hover:text-zinc-300"
+                  title={online ? "עריכה" : "לא ניתן לערוך ללא חיבור"}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
@@ -973,9 +976,9 @@ export function ActivityCard({
                 </button>
                 <button
                   onClick={() => setShowDeleteConfirm(true)}
-                  disabled={isDeleting}
+                  disabled={isDeleting || !online}
                   className="rounded p-1 text-zinc-400 hover:bg-red-50 hover:text-red-500 disabled:opacity-50 dark:hover:bg-red-900/20"
-                  title="מחיקה"
+                  title={online ? "מחיקה" : "לא ניתן למחוק ללא חיבור"}
                 >
                   {isDeleting ? (
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin">

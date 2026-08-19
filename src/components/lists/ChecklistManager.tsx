@@ -2,6 +2,13 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { SpeakButton } from "@/components/shared/SpeakButton"
+import { useOnlineStatus } from "@/hooks/useOnlineStatus"
+import {
+  applyPendingToggles,
+  enqueueToggle,
+  replayQueue,
+  type ReplayResult,
+} from "@/lib/offline-queue"
 
 interface ChecklistItem {
   id: string
@@ -112,6 +119,9 @@ export function ChecklistManager({
   const [pendingTranslations, setPendingTranslations] = useState<Set<string>>(new Set())
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const online = useOnlineStatus()
+  const [syncNotice, setSyncNotice] = useState<ReplayResult | null>(null)
+
   const { apiPath, labels, managedCategories } = config
   const colors = useColorClasses(config.colorScheme)
   const apiBase = `/api/trips/${tripId}/${apiPath}`
@@ -149,11 +159,16 @@ export function ChecklistManager({
       const res = await fetch(apiBase)
       if (res.ok) {
         const data = await res.json()
-        setItems(data.items)
+        // Offline this response comes from the service worker's cache, which
+        // still holds the pre-tap values, so unreplayed toggles are laid back
+        // over it. Without this a box ticked on the plane appears to untick
+        // itself on the next reload.
+        const items = applyPendingToggles<ChecklistItem>(apiPath, data.items)
+        setItems(items)
         setCategories(data.categories ?? [])
         const names = new Set<string>([
           ...(data.categories ?? []).map((c: ChecklistCategory) => c.name),
-          ...data.items.map((i: ChecklistItem) => i.category),
+          ...items.map((i: ChecklistItem) => i.category),
         ])
         setOpenCategories(names)
       }
@@ -166,6 +181,23 @@ export function ChecklistManager({
 
   useEffect(() => {
     fetchItems()
+  }, [fetchItems])
+
+  // Replay toggles made offline as soon as there is a connection again, then
+  // refetch so the list reflects whatever the server actually accepted.
+  useEffect(() => {
+    const sync = async () => {
+      const result = await replayQueue()
+      if (result.applied === 0 && result.conflicts === 0 && !result.forbidden) return
+      if (result.conflicts > 0 || result.forbidden) setSyncNotice(result)
+      // A 403 means the writes were refused, so the local ticks are all the user
+      // has left; refetching would wipe them out with no explanation.
+      if (!result.forbidden) await fetchItems()
+    }
+
+    void sync()
+    window.addEventListener("online", sync)
+    return () => window.removeEventListener("online", sync)
   }, [fetchItems])
 
   const initFromTemplate = async () => {
@@ -184,25 +216,37 @@ export function ChecklistManager({
   }
 
   const toggleItem = async (item: ChecklistItem) => {
+    const checked = !item.checked
+    const ts = Date.now()
+
     setItems((prev) =>
-      prev.map((i) =>
-        i.id === item.id ? { ...i, checked: !i.checked } : i
-      )
+      prev.map((i) => (i.id === item.id ? { ...i, checked } : i))
     )
 
+    const rollback = () =>
+      setItems((prev) =>
+        prev.map((i) => (i.id === item.id ? { ...i, checked: item.checked } : i))
+      )
+
     try {
-      await fetch(`${apiBase}?itemId=${item.id}`, {
+      const res = await fetch(`${apiBase}?itemId=${item.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ checked: !item.checked }),
+        body: JSON.stringify({ checked }),
       })
+      // A real server refusal, with a connection: the optimistic tick was wrong.
+      if (!res.ok) rollback()
     } catch (error) {
+      // No connection. Keep the tick and queue it — this is the whole point of
+      // being able to work through a packing list on a plane. `ts` is the tap
+      // time, which is what decides the winner if someone else edits the same
+      // item before this replays.
+      if (!navigator.onLine) {
+        enqueueToggle({ tripId, apiPath, itemId: item.id, checked, ts })
+        return
+      }
       console.error("Failed to toggle item:", error)
-      setItems((prev) =>
-        prev.map((i) =>
-          i.id === item.id ? { ...i, checked: item.checked } : i
-        )
-      )
+      rollback()
     }
   }
 
@@ -375,7 +419,8 @@ export function ChecklistManager({
         <p className="text-zinc-500">{labels.emptyState}</p>
         <button
           onClick={initFromTemplate}
-          className={`rounded-lg ${colors.initButton} px-4 py-2 text-sm font-medium text-white transition-colors`}
+          disabled={!online}
+          className={`rounded-lg ${colors.initButton} px-4 py-2 text-sm font-medium text-white disabled:opacity-40 transition-colors`}
         >
           אתחל מתבנית
         </button>
@@ -385,6 +430,30 @@ export function ChecklistManager({
 
   return (
     <div className="flex flex-col gap-4">
+      {/* What happened to the toggles made while offline. Shown only when the
+          server disagreed with them — a clean sync says nothing. */}
+      {syncNotice && (
+        <div
+          className={`flex items-start justify-between gap-3 rounded-xl border p-3 text-sm ${
+            syncNotice.forbidden
+              ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"
+              : "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+          }`}
+        >
+          <span>
+            {syncNotice.forbidden
+              ? "ההרשאות שלך בטיול השתנו, ולכן השינויים שביצעת ללא חיבור לא נשמרו. הסימונים מוצגים כאן בלבד."
+              : `${syncNotice.conflicts} שינויים לא נשמרו — מישהו עדכן אותם לפניך.`}
+          </span>
+          <button
+            onClick={() => setSyncNotice(null)}
+            className="shrink-0 font-medium underline"
+          >
+            סגור
+          </button>
+        </div>
+      )}
+
       {/* Progress bar */}
       <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
         <div className="mb-2 flex items-center justify-between text-sm">
@@ -410,7 +479,7 @@ export function ChecklistManager({
           <div className="mt-3 flex justify-end">
             <button
               onClick={translation.onTranslate}
-              disabled={translation.translating}
+              disabled={translation.translating || !online}
               className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600 transition-colors"
             >
               {translation.translating ? (
@@ -483,8 +552,9 @@ export function ChecklistManager({
                     >
                       <button
                         onClick={() => deleteItem(item.id)}
-                        className="text-zinc-300 hover:text-red-500 transition-colors"
-                        title="מחק"
+                        disabled={!online}
+                        className="text-zinc-300 hover:text-red-500 disabled:opacity-30 disabled:hover:text-zinc-300 transition-colors"
+                        title={online ? "מחק" : "לא זמין ללא חיבור"}
                       >
                         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -558,12 +628,13 @@ export function ChecklistManager({
                     onKeyDown={(e) => {
                       if (e.key === "Enter") addItem(category)
                     }}
-                    className="flex-1 bg-transparent text-sm text-right outline-none placeholder:text-zinc-400"
+                    disabled={!online}
+                    className="flex-1 bg-transparent text-sm text-right outline-none placeholder:text-zinc-400 disabled:opacity-40"
                     dir="rtl"
                   />
                   <button
                     onClick={() => addItem(category)}
-                    disabled={!newItemText[category]?.trim()}
+                    disabled={!online || !newItemText[category]?.trim()}
                     className={`rounded-md ${colors.addButton} px-3 py-1 text-xs font-medium disabled:opacity-40 transition-colors`}
                   >
                     הוסף
@@ -614,6 +685,7 @@ export function ChecklistManager({
               <button
                 onClick={managedCategories ? addCategory : addNewCategoryItem}
                 disabled={
+                  !online ||
                   !newCategoryName.trim() ||
                   (!managedCategories && !newCategoryItemText.trim())
                 }
@@ -627,7 +699,8 @@ export function ChecklistManager({
       ) : (
         <button
           onClick={() => setShowNewCategory(true)}
-          className={`flex items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 py-3 text-sm text-zinc-500 ${colors.newCategoryBorder} transition-colors dark:border-zinc-600`}
+          disabled={!online}
+          className={`flex items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 py-3 text-sm text-zinc-500 ${colors.newCategoryBorder} disabled:opacity-40 transition-colors dark:border-zinc-600`}
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />

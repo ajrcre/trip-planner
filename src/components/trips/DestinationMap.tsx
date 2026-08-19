@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react"
 import { loadMapsLibrary, loadMarkerLibrary } from "@/lib/google-maps-loader"
+import { useOnlineStatus } from "@/hooks/useOnlineStatus"
+import { OfflinePlaceholder } from "@/components/offline/OfflinePlaceholder"
 
 interface DestinationMapProps {
   center: { lat: number; lng: number }
@@ -12,6 +14,7 @@ export function DestinationMap({ center, destinationName }: DestinationMapProps)
   const mapRef = useRef<HTMLDivElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const online = useOnlineStatus()
 
   useEffect(() => {
     let marker: google.maps.marker.AdvancedMarkerElement | null = null
@@ -60,6 +63,10 @@ export function DestinationMap({ center, destinationName }: DestinationMapProps)
       }
     }
   }, [center, destinationName])
+
+  if (!online) {
+    return <OfflinePlaceholder className="h-72" />
+  }
 
   if (error) {
     return (

@@ -3,10 +3,12 @@
 import { useState } from "react"
 import { usePathname } from "next/navigation"
 import ChatDrawer from "./ChatDrawer"
+import { useOnlineStatus } from "@/hooks/useOnlineStatus"
 
 export default function GlobalAiButton() {
   const [isOpen, setIsOpen] = useState(false)
   const pathname = usePathname()
+  const online = useOnlineStatus()
 
   // Extract tripId from URL like /trips/[tripId] or /trips/[tripId]/...
   const match = pathname.match(/^\/trips\/([^/]+)/)
@@ -14,6 +16,11 @@ export default function GlobalAiButton() {
 
   // Only show when we have a trip context
   if (!tripId || tripId === "new") return null
+
+  // The assistant is a round trip to Gemini every time, so offline the button
+  // would only ever produce an error. Hiding it is less confusing than a
+  // disabled control the user keeps tapping.
+  if (!online) return null
 
   return (
     <>
