@@ -142,7 +142,8 @@ export async function getPlaceDetails(
 
 export async function calculateRoute(
   origin: { lat: number; lng: number },
-  destination: { lat: number; lng: number }
+  destination: { lat: number; lng: number },
+  options?: { departureTime?: Date }
 ): Promise<RouteResult> {
   const response = await fetch(
     "https://routes.googleapis.com/directions/v2:computeRoutes",
@@ -172,6 +173,12 @@ export async function calculateRoute(
         },
         travelMode: "DRIVE",
         routingPreference: "TRAFFIC_AWARE",
+        // The Routes API rejects a departureTime in the past. Request latency
+        // can make a just-computed "now" already stale, so require a margin.
+        ...(options?.departureTime &&
+        options.departureTime.getTime() > Date.now() + 60_000
+          ? { departureTime: options.departureTime.toISOString() }
+          : {}),
       }),
     }
   )
