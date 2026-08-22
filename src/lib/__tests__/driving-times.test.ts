@@ -5,9 +5,17 @@ jest.mock("../google-maps", () => ({
   calculateRoute: jest.fn(),
 }))
 
+jest.mock("../trip-timezone", () => ({
+  departureInstant: jest.fn(),
+}))
+
 import { calculateRoute } from "../google-maps"
+import { departureInstant } from "../trip-timezone"
 
 const mockedCalculateRoute = calculateRoute as jest.MockedFunction<typeof calculateRoute>
+const mockedDepartureInstant = departureInstant as jest.MockedFunction<
+  typeof departureInstant
+>
 
 describe("computeDrivingTimesForDay", () => {
   beforeEach(() => {
@@ -148,5 +156,75 @@ describe("computeDrivingTimesForDay", () => {
 
     const result = await computeDrivingTimesForDay(accommodations, activity)
     expect(result).toEqual([])
+  })
+})
+
+describe("computeDrivingTimesForDay — departure times", () => {
+  const accommodations = [{ name: "Hotel A", coordinates: { lat: 1, lng: 2 } }]
+  const activity = {
+    attraction: { lat: 3, lng: 4 },
+    restaurant: null,
+    groceryStore: null,
+  }
+  const when = { dayDate: new Date("2099-09-14T00:00:00.000Z"), timeStart: "09:00" }
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    clearRouteCache()
+    mockedCalculateRoute.mockResolvedValue({ durationMinutes: 25, distanceKm: 18.5 })
+  })
+
+  it("passes a future departure time through to calculateRoute", async () => {
+    const departure = new Date("2099-09-14T07:00:00.000Z")
+    mockedDepartureInstant.mockResolvedValue(departure)
+
+    await computeDrivingTimesForDay(accommodations, activity, when)
+
+    expect(mockedCalculateRoute).toHaveBeenCalledWith(
+      { lat: 1, lng: 2 },
+      { lat: 3, lng: 4 },
+      { departureTime: departure }
+    )
+  })
+
+  it("treats different departure hours as different cache entries", async () => {
+    mockedDepartureInstant
+      .mockResolvedValueOnce(new Date("2099-09-14T07:00:00.000Z"))
+      .mockResolvedValueOnce(new Date("2099-09-14T12:00:00.000Z"))
+
+    await computeDrivingTimesForDay(accommodations, activity, when)
+    await computeDrivingTimesForDay(accommodations, activity, {
+      ...when,
+      timeStart: "14:00",
+    })
+
+    expect(mockedCalculateRoute).toHaveBeenCalledTimes(2)
+  })
+
+  it("shares a cache entry for the same departure hour", async () => {
+    mockedDepartureInstant.mockResolvedValue(new Date("2099-09-14T07:00:00.000Z"))
+
+    await computeDrivingTimesForDay(accommodations, activity, when)
+    await computeDrivingTimesForDay(accommodations, activity, when)
+
+    expect(mockedCalculateRoute).toHaveBeenCalledTimes(1)
+  })
+
+  it("omits the options argument entirely when there is no departure", async () => {
+    mockedDepartureInstant.mockResolvedValue(undefined)
+
+    await computeDrivingTimesForDay(accommodations, activity, when)
+
+    // Exactly two arguments — a trailing `undefined` would break the
+    // pre-existing two-argument assertions elsewhere in this file.
+    expect(mockedCalculateRoute).toHaveBeenCalledWith(
+      { lat: 1, lng: 2 },
+      { lat: 3, lng: 4 }
+    )
+  })
+
+  it("does not consult the timezone helper when `when` is omitted", async () => {
+    await computeDrivingTimesForDay(accommodations, activity)
+    expect(mockedDepartureInstant).not.toHaveBeenCalled()
   })
 })

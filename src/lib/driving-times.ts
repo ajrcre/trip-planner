@@ -1,30 +1,55 @@
 import { calculateRoute } from "./google-maps"
+import { departureInstant } from "./trip-timezone"
 
-// Simple in-memory cache for route calculations
-// Key: "lat1,lng1→lat2,lng2", Value: { minutes, timestamp }
-const routeCache = new Map<string, { minutes: number; timestamp: number }>()
-const CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour
+// Simple in-memory cache for route calculations.
+// Key: "lat1,lng1→lat2,lng2@<bucket>" where bucket is either the departure
+// hour ("2026-09-14T09") or "live" when no departure time is known.
+const routeCache = new Map<string, { minutes: number; expiresAt: number }>()
+
+// A live-traffic answer goes stale within the hour. A prediction for a future
+// slot is stable day to day, so it may be held much longer.
+const LIVE_TTL_MS = 60 * 60 * 1000 // 1 hour
+const FUTURE_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
+
+function departureBucket(departureTime: Date | undefined): string {
+  if (!departureTime) return "live"
+  // Hour resolution: keeps 09:00 and 14:00 distinct while letting minor edits
+  // share an entry.
+  return departureTime.toISOString().slice(0, 13)
+}
 
 function getCacheKey(
   origin: { lat: number; lng: number },
-  dest: { lat: number; lng: number }
+  dest: { lat: number; lng: number },
+  bucket: string
 ): string {
-  return `${origin.lat},${origin.lng}→${dest.lat},${dest.lng}`
+  return `${origin.lat},${origin.lng}→${dest.lat},${dest.lng}@${bucket}`
 }
 
 async function getRouteMinutes(
   origin: { lat: number; lng: number },
-  dest: { lat: number; lng: number }
+  dest: { lat: number; lng: number },
+  departureTime?: Date
 ): Promise<number> {
-  const key = getCacheKey(origin, dest)
+  const bucket = departureBucket(departureTime)
+  const key = getCacheKey(origin, dest, bucket)
   const cached = routeCache.get(key)
 
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+  if (cached && Date.now() < cached.expiresAt) {
     return cached.minutes
   }
 
-  const route = await calculateRoute(origin, dest)
-  routeCache.set(key, { minutes: route.durationMinutes, timestamp: Date.now() })
+  // Branch rather than passing `undefined`: a trailing undefined argument
+  // would break two-argument call assertions in the test suite.
+  const route = departureTime
+    ? await calculateRoute(origin, dest, { departureTime })
+    : await calculateRoute(origin, dest)
+
+  const ttl = departureTime ? FUTURE_TTL_MS : LIVE_TTL_MS
+  routeCache.set(key, {
+    minutes: route.durationMinutes,
+    expiresAt: Date.now() + ttl,
+  })
   return route.durationMinutes
 }
 
@@ -56,7 +81,8 @@ export interface DrivingTimeFromLodging {
  */
 export async function computeDrivingTimesForDay(
   accommodations: AccommodationForDriving[],
-  activity: ActivityForDriving
+  activity: ActivityForDriving,
+  when?: { dayDate: Date; timeStart: string | null }
 ): Promise<DrivingTimeFromLodging[]> {
   // Determine activity destination coordinates
   const destLat = activity.attraction?.lat ?? activity.restaurant?.lat ?? activity.groceryStore?.lat ?? null
@@ -78,7 +104,13 @@ export async function computeDrivingTimesForDay(
 
   for (const acc of accsWithCoords) {
     try {
-      const minutes = await getRouteMinutes(acc.coordinates, dest)
+      // Resolved per accommodation: on a relocation day the two lodgings can
+      // sit in different timezones.
+      const departure = when
+        ? await departureInstant(when.dayDate, when.timeStart, acc.coordinates)
+        : undefined
+
+      const minutes = await getRouteMinutes(acc.coordinates, dest, departure)
       results.push({
         accommodationName: acc.name || "לינה",
         minutes,
