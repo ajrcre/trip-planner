@@ -185,14 +185,20 @@ export async function GET(
         dayPlan.activities.map(async (activity) => {
           const drivingTimesFromLodging: DrivingTimeFromLodging[] =
             activity.attraction || activity.restaurant || activity.groceryStore
-              ? await computeDrivingTimesForDay(dayAccommodations, activity)
+              ? await computeDrivingTimesForDay(dayAccommodations, activity, {
+                  dayDate: dayPlan.date,
+                  timeStart: activity.timeStart,
+                })
               : []
 
           const enrichedAlternatives = await Promise.all(
             (activity.alternatives ?? []).map(async (alt) => {
               const drivingTimesFromLodging: DrivingTimeFromLodging[] =
                 alt.attraction || alt.restaurant || alt.groceryStore
-                  ? await computeDrivingTimesForDay(dayAccommodations, alt)
+                  ? await computeDrivingTimesForDay(dayAccommodations, alt, {
+                      dayDate: dayPlan.date,
+                      timeStart: activity.timeStart,
+                    })
                   : []
               return { ...alt, drivingTimesFromLodging }
             })
