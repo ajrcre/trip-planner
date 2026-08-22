@@ -123,7 +123,6 @@ interface TripData {
       timeEnd?: string | null
       type: string
       notes?: string | null
-      travelTimeToNextMinutes?: number | null
       travelLeg?: {
         driveMinutes?: number | null
         resolvedOrigin?: { label?: string; lat?: number; lng?: number } | null
@@ -506,28 +505,6 @@ function buildScheduleSection(
             )
           }
         }
-      }
-
-      // Driving time to next activity
-      if (
-        activity.travelTimeToNextMinutes != null &&
-        activity.travelTimeToNextMinutes > 0
-      ) {
-        paragraphs.push(
-          new Paragraph({
-            bidirectional: true,
-            alignment: AlignmentType.CENTER,
-            spacing: { before: 60, after: 60 },
-            children: [
-              new TextRun({
-                text: `🚗 ${activity.travelTimeToNextMinutes} דקות נסיעה`,
-                rightToLeft: true,
-                size: 16,
-                color: "888888",
-              }),
-            ],
-          })
-        )
       }
     }
   }

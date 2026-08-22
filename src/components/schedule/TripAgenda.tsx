@@ -212,25 +212,9 @@ export function TripAgenda({
                 </span>
               ) : (
                 <div className="divide-y divide-zinc-100 dark:divide-zinc-700/60">
-                  {activities.map((activity, index) => (
+                  {activities.map((activity) => (
                     <div key={activity.id}>
                       <ActivityRow activity={activity} accommodations={accommodations} />
-                      {/*
-                        Travel times are the gap to the *next* activity in the full
-                        day, so they are meaningless once rows in between are
-                        filtered out — hide them entirely in attractions-only mode.
-                      */}
-                      {!attractionsOnly &&
-                        activity.travelTimeToNextMinutes != null &&
-                        activity.travelTimeToNextMinutes > 0 &&
-                        index < activities.length - 1 && (
-                          <div className="pb-1.5 sm:ps-40">
-                            <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400">
-                              <span aria-hidden="true">{"\u{1F697}"}</span>
-                              {activity.travelTimeToNextMinutes} דקות נסיעה
-                            </span>
-                          </div>
-                        )}
                     </div>
                   ))}
                 </div>

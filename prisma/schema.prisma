@@ -324,8 +324,6 @@ model Activity {
    */
   restAccommodationIndex Int?
 
-  travelTimeToNextMinutes Int?
-
   alternatives ActivityAlternative[]
 
   createdAt DateTime @default(now())

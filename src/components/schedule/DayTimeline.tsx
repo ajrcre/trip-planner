@@ -87,7 +87,6 @@ type ActivityPayloadItem = {
   restaurantId?: string | null
   groceryStoreId?: string | null
   restAccommodationIndex?: number | null
-  travelTimeToNextMinutes?: number | null
   travelLeg?: { origin: TravelEndpointRef; destination: TravelEndpointRef } | null
   alternatives?: Array<{
     priority: number
@@ -274,7 +273,6 @@ export function DayTimeline({
       restaurantId: a.restaurantId,
       groceryStoreId: a.groceryStoreId,
       restAccommodationIndex: a.restAccommodationIndex ?? null,
-      travelTimeToNextMinutes: a.travelTimeToNextMinutes,
       travelLeg:
         a.type === "travel" && a.travelLeg
           ? { origin: a.travelLeg.origin, destination: a.travelLeg.destination }
@@ -366,7 +364,6 @@ export function DayTimeline({
             : addType === "meal" && addMealLocationId.startsWith("a:")
             ? parseInt(addMealLocationId.slice(2), 10)
             : null,
-        travelTimeToNextMinutes: null,
         travelLeg,
         alternatives: alternativesPayload,
       }
@@ -625,7 +622,7 @@ export function DayTimeline({
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          {dayPlan.activities.map((activity, index) => (
+          {dayPlan.activities.map((activity) => (
             <div
               key={activity.id}
               id={`activity-${activity.id}`}
@@ -648,20 +645,6 @@ export function DayTimeline({
                 onRemoveAlternative={handleRemoveAlternative}
                 onAddAlternative={handleAddAlternative}
               />
-              {/* Travel time indicator between activities */}
-              {activity.travelTimeToNextMinutes != null &&
-                activity.travelTimeToNextMinutes > 0 &&
-                index < dayPlan.activities.length - 1 && (
-                  <div className="flex items-center justify-center py-1">
-                    <div className="flex items-center gap-1 rounded-full bg-zinc-100 px-3 py-0.5 text-xs text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400">
-                      <span>{"\u{1F697}"}</span>
-                      <span>
-                        {activity.travelTimeToNextMinutes}{" "}
-                        {"\u05D3\u05E7\u05D5\u05EA \u05E0\u05E1\u05D9\u05E2\u05D4"}
-                      </span>
-                    </div>
-                  </div>
-                )}
             </div>
           ))}
         </div>

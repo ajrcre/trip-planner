@@ -60,7 +60,6 @@ function toActivityCreateData(
     attractionId: a.attractionId ?? null,
     restaurantId: a.restaurantId ?? null,
     restAccommodationIndex: a.restAccommodationIndex ?? null,
-    travelTimeToNextMinutes: null as number | null,
   }))
 }
 

@@ -110,18 +110,8 @@ export function formatDayForWhatsApp(
 
   const blocks: string[] = [header]
 
-  for (let i = 0; i < dayPlan.activities.length; i++) {
-    const activity = dayPlan.activities[i]
+  for (const activity of dayPlan.activities) {
     blocks.push(formatActivity(activity, tripAccommodations, dayPlan.date))
-
-    // Travel time separator
-    if (
-      activity.travelTimeToNextMinutes != null &&
-      activity.travelTimeToNextMinutes > 0 &&
-      i < dayPlan.activities.length - 1
-    ) {
-      blocks.push(`🚗 _${activity.travelTimeToNextMinutes} דק׳ נסיעה_`)
-    }
   }
 
   return blocks.join("\n\n")

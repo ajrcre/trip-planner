@@ -49,7 +49,6 @@ export interface ActivityData {
   restaurantId: string | null
   groceryStoreId: string | null
   restAccommodationIndex?: number | null
-  travelTimeToNextMinutes: number | null
   attraction: PlaceData | null
   restaurant: PlaceData | null
   groceryStore: PlaceData | null
@@ -996,17 +995,6 @@ export function ActivityCard({
           </div>
         </div>
       )}
-
-      {/* Travel time to next */}
-      {activity.travelTimeToNextMinutes != null &&
-        activity.travelTimeToNextMinutes > 0 && (
-          <div className="mt-2 flex items-center gap-1 border-t border-zinc-100 pt-2 text-xs text-zinc-400 dark:border-zinc-700">
-            <span>{"\u{1F697}"}</span>
-            <span>
-              {activity.travelTimeToNextMinutes} {"\u05D3\u05E7\u05D5\u05EA \u05E0\u05E1\u05D9\u05E2\u05D4"}
-            </span>
-          </div>
-        )}
     </div>
   )
 }

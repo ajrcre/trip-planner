@@ -39,7 +39,6 @@ interface ActivityPayload {
   restaurantId?: string | null
   groceryStoreId?: string | null
   restAccommodationIndex?: number | null
-  travelTimeToNextMinutes?: number | null
   travelLeg?: {
     origin: TravelEndpointRef
     destination: TravelEndpointRef
@@ -201,7 +200,6 @@ export async function PUT(
               activity.type === "rest"
                 ? activity.restAccommodationIndex ?? null
                 : null,
-            travelTimeToNextMinutes: activity.travelTimeToNextMinutes ?? null,
             travelLeg: travelLegJson ?? undefined,
           },
         })
