@@ -84,7 +84,7 @@ describe("zonedDateTimeToUtc", () => {
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `npx jest --testPathPattern=trip-timezone`
+Run: `npx jest --testPathPatterns=trip-timezone`
 Expected: FAIL — `Cannot find module '../trip-timezone'`.
 
 - [ ] **Step 3: Write the implementation**
@@ -149,7 +149,7 @@ export function zonedDateTimeToUtc(
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `npx jest --testPathPattern=trip-timezone`
+Run: `npx jest --testPathPatterns=trip-timezone`
 Expected: PASS, 7 tests.
 
 - [ ] **Step 5: Commit**
@@ -289,7 +289,7 @@ describe("departureInstant", () => {
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `npx jest --testPathPattern=trip-timezone`
+Run: `npx jest --testPathPatterns=trip-timezone`
 Expected: FAIL — `resolveTimeZone is not a function`.
 
 - [ ] **Step 3: Write the implementation**
@@ -383,7 +383,7 @@ export async function departureInstant(
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `npx jest --testPathPattern=trip-timezone`
+Run: `npx jest --testPathPatterns=trip-timezone`
 Expected: PASS, 15 tests total.
 
 - [ ] **Step 5: Commit**
@@ -578,7 +578,7 @@ describe("computeDrivingTimesForDay — departure times", () => {
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `npx jest --testPathPattern=driving-times`
+Run: `npx jest --testPathPatterns=driving-times`
 Expected: FAIL — the new suite fails because the third argument is ignored. The pre-existing suites should still PASS.
 
 - [ ] **Step 3: Write the implementation**
@@ -679,7 +679,7 @@ and inside the existing `for (const acc of accsWithCoords)` loop, replace the `t
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `npx jest --testPathPattern=driving-times`
+Run: `npx jest --testPathPatterns=driving-times`
 Expected: PASS — both the pre-existing suites (unmodified) and the new one.
 
 - [ ] **Step 5: Type-check and commit**
