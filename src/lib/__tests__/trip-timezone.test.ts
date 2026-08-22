@@ -25,6 +25,20 @@ describe("zonedDateTimeToUtc", () => {
     expect(d.toISOString()).toBe("2026-10-25T08:00:00.000Z")
   })
 
+  it("resolves a nonexistent spring-forward local time forward", () => {
+    // 2026-03-29: Rome jumps 02:00 CET -> 03:00 CEST, so 02:30 never occurs.
+    // The two-pass correction resolves it to 03:30 CEST.
+    const d = zonedDateTimeToUtc("2026-03-29", "02:30", "Europe/Rome")
+    expect(d.toISOString()).toBe("2026-03-29T01:30:00.000Z")
+  })
+
+  it("resolves an ambiguous fall-back local time to its first occurrence", () => {
+    // 2026-10-25: Rome repeats 02:00-03:00 when CEST -> CET. 01:30 resolves
+    // to the CEST (UTC+2) reading.
+    const d = zonedDateTimeToUtc("2026-10-25", "01:30", "Europe/Rome")
+    expect(d.toISOString()).toBe("2026-10-24T23:30:00.000Z")
+  })
+
   it("handles a negative UTC offset", () => {
     const d = zonedDateTimeToUtc("2026-09-14", "09:00", "America/New_York")
     expect(d.toISOString()).toBe("2026-09-14T13:00:00.000Z")
