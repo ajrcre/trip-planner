@@ -52,10 +52,12 @@ export function zonedDateTimeToUtc(
   return new Date(secondPass)
 }
 
-// Timezone ids never change for a location, so entries never expire.
+// Timezone ids never change for a location, so successful lookups never
+// expire. Failures are not cached, so a transient error or missing API key
+// retries on the next call instead of poisoning the entry permanently.
 // Keyed on coordinates rounded to 1 decimal place (~11 km), which keeps a
 // whole city on one entry.
-const timeZoneCache = new Map<string, string | null>()
+const timeZoneCache = new Map<string, string>()
 
 function tzCacheKey(coords: { lat: number; lng: number }): string {
   return `${coords.lat.toFixed(1)},${coords.lng.toFixed(1)}`
@@ -77,9 +79,8 @@ export async function resolveTimeZone(coords: {
 }): Promise<string | null> {
   const key = tzCacheKey(coords)
   const cached = timeZoneCache.get(key)
-  if (cached !== undefined) return cached
+  if (cached) return cached
 
-  let result: string | null = null
   try {
     const apiKey = process.env.GOOGLE_MAPS_API_KEY
     if (!apiKey) throw new Error("GOOGLE_MAPS_API_KEY is not configured")
@@ -96,15 +97,15 @@ export async function resolveTimeZone(coords: {
     if (response.ok) {
       const data = await response.json()
       if (data?.status === "OK" && typeof data.timeZoneId === "string") {
-        result = data.timeZoneId
+        timeZoneCache.set(key, data.timeZoneId)
+        return data.timeZoneId
       }
     }
   } catch {
-    result = null
+    // fall through to null below
   }
 
-  timeZoneCache.set(key, result)
-  return result
+  return null
 }
 
 /**
@@ -124,11 +125,10 @@ export async function departureInstant(
   const timeZone = await resolveTimeZone(originCoords)
   if (!timeZone) return undefined
 
-  // dayDate is a date-only column; read its calendar date in UTC to avoid a
-  // server-local shift moving the trip a day.
-  const dateStr = dayDate.toISOString().split("T")[0]
-
   try {
+    // dayDate is a date-only column; read its calendar date in UTC to avoid
+    // a server-local shift moving the trip a day.
+    const dateStr = dayDate.toISOString().split("T")[0]
     return zonedDateTimeToUtc(dateStr, timeStart, timeZone)
   } catch {
     return undefined

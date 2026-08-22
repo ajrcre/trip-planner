@@ -111,6 +111,16 @@ describe("resolveTimeZone", () => {
     ;(global.fetch as jest.Mock).mockRejectedValue(new Error("network"))
     await expect(resolveTimeZone({ lat: 1, lng: 2 })).resolves.toBeNull()
   })
+
+  it("retries after a transient failure instead of caching it", async () => {
+    ;(global.fetch as jest.Mock).mockRejectedValueOnce(new Error("network"))
+    await expect(resolveTimeZone({ lat: 41.9, lng: 12.5 })).resolves.toBeNull()
+
+    mockOk("Europe/Rome")
+    await expect(resolveTimeZone({ lat: 41.9, lng: 12.5 })).resolves.toBe(
+      "Europe/Rome"
+    )
+  })
 })
 
 describe("departureInstant", () => {
@@ -155,6 +165,14 @@ describe("departureInstant", () => {
       "09:00",
       { lat: 41.9, lng: 12.5 }
     )
+    expect(d).toBeUndefined()
+  })
+
+  it("returns undefined rather than throwing when dayDate is invalid", async () => {
+    const d = await departureInstant(new Date(NaN), "09:00", {
+      lat: 41.9,
+      lng: 12.5,
+    })
     expect(d).toBeUndefined()
   })
 })
