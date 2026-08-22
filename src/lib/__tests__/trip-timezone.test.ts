@@ -1,4 +1,9 @@
-import { zonedDateTimeToUtc } from "../trip-timezone"
+import {
+  zonedDateTimeToUtc,
+  resolveTimeZone,
+  departureInstant,
+  clearTimeZoneCache,
+} from "../trip-timezone"
 
 describe("zonedDateTimeToUtc", () => {
   it("converts a summer (CEST, UTC+2) wall-clock time", () => {
@@ -51,5 +56,105 @@ describe("zonedDateTimeToUtc", () => {
 
   it("throws on an unparseable date or time", () => {
     expect(() => zonedDateTimeToUtc("not-a-date", "09:00", "Europe/Rome")).toThrow()
+  })
+})
+
+describe("resolveTimeZone", () => {
+  const originalFetch = global.fetch
+  const originalKey = process.env.GOOGLE_MAPS_API_KEY
+
+  beforeEach(() => {
+    clearTimeZoneCache()
+    process.env.GOOGLE_MAPS_API_KEY = "test-key"
+    global.fetch = jest.fn() as unknown as typeof fetch
+  })
+
+  afterEach(() => {
+    global.fetch = originalFetch
+    process.env.GOOGLE_MAPS_API_KEY = originalKey
+  })
+
+  const mockOk = (timeZoneId: string) =>
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: "OK", timeZoneId }),
+    })
+
+  it("returns the IANA id for a coordinate", async () => {
+    mockOk("Europe/Rome")
+    await expect(resolveTimeZone({ lat: 41.9, lng: 12.5 })).resolves.toBe("Europe/Rome")
+  })
+
+  it("caches by rounded coordinates so nearby points share one lookup", async () => {
+    mockOk("Europe/Rome")
+    await resolveTimeZone({ lat: 41.902, lng: 12.496 })
+    await resolveTimeZone({ lat: 41.918, lng: 12.502 })
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it("issues separate lookups for distant coordinates", async () => {
+    mockOk("Europe/Rome")
+    await resolveTimeZone({ lat: 41.9, lng: 12.5 })
+    await resolveTimeZone({ lat: 48.9, lng: 2.4 })
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it("returns null when the API reports a non-OK status", async () => {
+    ;(global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: "ZERO_RESULTS" }),
+    })
+    await expect(resolveTimeZone({ lat: 0, lng: 0 })).resolves.toBeNull()
+  })
+
+  it("returns null when the request throws", async () => {
+    ;(global.fetch as jest.Mock).mockRejectedValue(new Error("network"))
+    await expect(resolveTimeZone({ lat: 1, lng: 2 })).resolves.toBeNull()
+  })
+})
+
+describe("departureInstant", () => {
+  const originalFetch = global.fetch
+
+  beforeEach(() => {
+    clearTimeZoneCache()
+    process.env.GOOGLE_MAPS_API_KEY = "test-key"
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: "OK", timeZoneId: "Europe/Rome" }),
+    }) as unknown as typeof fetch
+  })
+
+  afterEach(() => {
+    global.fetch = originalFetch
+  })
+
+  it("combines the day date and start time into a UTC instant", async () => {
+    const d = await departureInstant(
+      new Date("2026-09-14T00:00:00.000Z"),
+      "09:00",
+      { lat: 41.9, lng: 12.5 }
+    )
+    expect(d?.toISOString()).toBe("2026-09-14T07:00:00.000Z")
+  })
+
+  it("returns undefined when there is no start time", async () => {
+    const d = await departureInstant(
+      new Date("2026-09-14T00:00:00.000Z"),
+      null,
+      { lat: 41.9, lng: 12.5 }
+    )
+    expect(d).toBeUndefined()
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it("returns undefined when the timezone cannot be resolved", async () => {
+    ;(global.fetch as jest.Mock).mockRejectedValue(new Error("network"))
+    const d = await departureInstant(
+      new Date("2026-09-14T00:00:00.000Z"),
+      "09:00",
+      { lat: 41.9, lng: 12.5 }
+    )
+    expect(d).toBeUndefined()
   })
 })
