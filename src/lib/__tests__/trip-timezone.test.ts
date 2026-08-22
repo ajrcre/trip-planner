@@ -121,6 +121,33 @@ describe("resolveTimeZone", () => {
       "Europe/Rome"
     )
   })
+
+  it("dedupes concurrent lookups for the same coordinate into a single fetch", async () => {
+    let resolveFetch: (value: unknown) => void
+    ;(global.fetch as jest.Mock).mockReturnValue(
+      new Promise((resolve) => {
+        resolveFetch = resolve
+      })
+    )
+
+    const calls = Array.from({ length: 80 }, () =>
+      resolveTimeZone({ lat: 41.9, lng: 12.5 })
+    )
+
+    // Let the concurrent callers all run past the cache check before the
+    // single in-flight fetch settles.
+    await Promise.resolve()
+    await Promise.resolve()
+
+    resolveFetch!({
+      ok: true,
+      json: async () => ({ status: "OK", timeZoneId: "Europe/Rome" }),
+    })
+
+    const results = await Promise.all(calls)
+    expect(results).toEqual(Array(80).fill("Europe/Rome"))
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe("departureInstant", () => {

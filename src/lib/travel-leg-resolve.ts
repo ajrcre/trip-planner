@@ -1,6 +1,10 @@
 import type { Accommodation } from "@/lib/accommodations"
 import type { CarRental, FlightLeg } from "@/lib/normalizers"
-import { geocodeAddress, calculateRoute } from "@/lib/google-maps"
+import {
+  geocodeAddress,
+  calculateRoute,
+  isUsableDepartureTime,
+} from "@/lib/google-maps"
 import { departureInstant } from "@/lib/trip-timezone"
 import type { TravelEndpointRef, TravelLegStored } from "@/types/travel-leg"
 
@@ -113,18 +117,35 @@ export async function buildTravelLegForSave(
   ])
   if (!a || !b) return null
 
-  // Only resolvable now: the timezone comes from the resolved origin.
-  const departure = when
-    ? await departureInstant(when.dayDate, when.timeStart, { lat: a.lat, lng: a.lng })
-    : undefined
-
   let driveMinutes: number | undefined
   try {
+    // Only resolvable now: the timezone comes from the resolved origin.
+    const departure = when
+      ? await departureInstant(when.dayDate, when.timeStart, { lat: a.lat, lng: a.lng })
+      : undefined
+
+    const origin = { lat: a.lat, lng: a.lng }
+    const destination = { lat: b.lat, lng: b.lng }
+
     // Branch rather than passing `undefined` — see driving-times.ts.
-    const route = departure
-      ? await calculateRoute({ lat: a.lat, lng: a.lng }, { lat: b.lat, lng: b.lng }, { departureTime: departure })
-      : await calculateRoute({ lat: a.lat, lng: a.lng }, { lat: b.lat, lng: b.lng })
-    driveMinutes = route.durationMinutes
+    if (isUsableDepartureTime(departure)) {
+      try {
+        const route = await calculateRoute(origin, destination, {
+          departureTime: departure,
+        })
+        driveMinutes = route.durationMinutes
+      } catch {
+        // The Routes API rejected the request — possibly because of
+        // departureTime itself. Retry once without it rather than losing
+        // the estimate entirely; the same call without departureTime would
+        // have succeeded before this feature existed.
+        const route = await calculateRoute(origin, destination)
+        driveMinutes = route.durationMinutes
+      }
+    } else {
+      const route = await calculateRoute(origin, destination)
+      driveMinutes = route.durationMinutes
+    }
   } catch {
     driveMinutes = undefined
   }

@@ -1,18 +1,33 @@
+// The formatter depends only on `timeZone`, so a warm schedule load (which
+// calls offsetAt twice per zonedDateTimeToUtc, across hundreds of
+// activities) reuses one instance per zone instead of rebuilding it each
+// time.
+const dtfCache = new Map<string, Intl.DateTimeFormat>()
+
+function getFormatter(timeZone: string): Intl.DateTimeFormat {
+  let dtf = dtfCache.get(timeZone)
+  if (!dtf) {
+    dtf = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hour12: false,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })
+    dtfCache.set(timeZone, dtf)
+  }
+  return dtf
+}
+
 /**
  * Offset in milliseconds between the given instant and how a wall clock in
  * `timeZone` reads it. Positive east of UTC.
  */
 function offsetAt(ms: number, timeZone: string): number {
-  const dtf = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    hour12: false,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  })
+  const dtf = getFormatter(timeZone)
   const parts = dtf.formatToParts(new Date(ms))
   const get = (type: string) => {
     const part = parts.find((p) => p.type === type)
@@ -57,7 +72,12 @@ export function zonedDateTimeToUtc(
 // retries on the next call instead of poisoning the entry permanently.
 // Keyed on coordinates rounded to 1 decimal place (~11 km), which keeps a
 // whole city on one entry.
-const timeZoneCache = new Map<string, string>()
+//
+// Stores the in-flight promise (not the resolved value) so concurrent
+// callers for the same key await one lookup instead of each firing their
+// own API call. A promise that resolves to null (failure) is removed from
+// the map once it settles, preserving the "failures are not cached" rule.
+const timeZoneCache = new Map<string, Promise<string | null>>()
 
 function tzCacheKey(coords: { lat: number; lng: number }): string {
   return `${coords.lat.toFixed(1)},${coords.lng.toFixed(1)}`
@@ -81,31 +101,42 @@ export async function resolveTimeZone(coords: {
   const cached = timeZoneCache.get(key)
   if (cached) return cached
 
-  try {
-    const apiKey = process.env.GOOGLE_MAPS_API_KEY
-    if (!apiKey) throw new Error("GOOGLE_MAPS_API_KEY is not configured")
+  const lookup = (async () => {
+    try {
+      const apiKey = process.env.GOOGLE_MAPS_API_KEY
+      if (!apiKey) throw new Error("GOOGLE_MAPS_API_KEY is not configured")
 
-    const url = new URL("https://maps.googleapis.com/maps/api/timezone/json")
-    url.searchParams.set("location", `${coords.lat},${coords.lng}`)
-    url.searchParams.set(
-      "timestamp",
-      String(Math.floor(Date.now() / 1000))
-    )
-    url.searchParams.set("key", apiKey)
+      const url = new URL("https://maps.googleapis.com/maps/api/timezone/json")
+      url.searchParams.set("location", `${coords.lat},${coords.lng}`)
+      url.searchParams.set(
+        "timestamp",
+        String(Math.floor(Date.now() / 1000))
+      )
+      url.searchParams.set("key", apiKey)
 
-    const response = await fetch(url.toString())
-    if (response.ok) {
-      const data = await response.json()
-      if (data?.status === "OK" && typeof data.timeZoneId === "string") {
-        timeZoneCache.set(key, data.timeZoneId)
-        return data.timeZoneId
+      const response = await fetch(url.toString())
+      if (response.ok) {
+        const data = await response.json()
+        if (data?.status === "OK" && typeof data.timeZoneId === "string") {
+          return data.timeZoneId
+        }
       }
+    } catch {
+      // fall through to null below
     }
-  } catch {
-    // fall through to null below
-  }
 
-  return null
+    return null
+  })()
+
+  timeZoneCache.set(key, lookup)
+
+  const result = await lookup
+  if (result === null) {
+    // Failures are not cached: remove the settled entry so the next call
+    // retries instead of reusing a rejected promise forever.
+    timeZoneCache.delete(key)
+  }
+  return result
 }
 
 /**

@@ -140,11 +140,22 @@ export async function getPlaceDetails(
   return response.json()
 }
 
+// The Routes API rejects a departureTime in the past. Request latency can
+// make a just-computed "now" already stale, so require a margin. Shared with
+// driving-times.ts so the cache TTL decision agrees with whether the
+// departureTime is actually sent.
+const MIN_FUTURE_DEPARTURE_MS = 60_000
+
+export function isUsableDepartureTime(d: Date | undefined): d is Date {
+  return d !== undefined && d.getTime() > Date.now() + MIN_FUTURE_DEPARTURE_MS
+}
+
 export async function calculateRoute(
   origin: { lat: number; lng: number },
   destination: { lat: number; lng: number },
   options?: { departureTime?: Date }
 ): Promise<RouteResult> {
+  const departureTime = options?.departureTime
   const response = await fetch(
     "https://routes.googleapis.com/directions/v2:computeRoutes",
     {
@@ -173,11 +184,8 @@ export async function calculateRoute(
         },
         travelMode: "DRIVE",
         routingPreference: "TRAFFIC_AWARE",
-        // The Routes API rejects a departureTime in the past. Request latency
-        // can make a just-computed "now" already stale, so require a margin.
-        ...(options?.departureTime &&
-        options.departureTime.getTime() > Date.now() + 60_000
-          ? { departureTime: options.departureTime.toISOString() }
+        ...(isUsableDepartureTime(departureTime)
+          ? { departureTime: departureTime.toISOString() }
           : {}),
       }),
     }

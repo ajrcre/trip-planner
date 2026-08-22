@@ -1,4 +1,8 @@
-import { calculateRoute } from "./google-maps"
+import {
+  calculateRoute,
+  isUsableDepartureTime,
+  type RouteResult,
+} from "./google-maps"
 import { departureInstant } from "./trip-timezone"
 
 // Simple in-memory cache for route calculations.
@@ -31,21 +35,47 @@ async function getRouteMinutes(
   dest: { lat: number; lng: number },
   departureTime?: Date
 ): Promise<number> {
+  // The bucket keeps using the raw departure instant (when one exists) so
+  // cache keys stay stable — only the TTL selection below depends on
+  // whether the departure is actually usable.
   const bucket = departureBucket(departureTime)
   const key = getCacheKey(origin, dest, bucket)
   const cached = routeCache.get(key)
 
-  if (cached && Date.now() < cached.expiresAt) {
-    return cached.minutes
+  if (cached) {
+    if (Date.now() < cached.expiresAt) {
+      return cached.minutes
+    }
+    routeCache.delete(key)
   }
 
-  // Branch rather than passing `undefined`: a trailing undefined argument
-  // would break two-argument call assertions in the test suite.
-  const route = departureTime
-    ? await calculateRoute(origin, dest, { departureTime })
-    : await calculateRoute(origin, dest)
+  // Same predicate calculateRoute uses to decide whether to actually send
+  // departureTime — a past departure gets a live-traffic answer, not a
+  // future prediction, so it must not be cached as one.
+  const useDeparture = isUsableDepartureTime(departureTime)
 
-  const ttl = departureTime ? FUTURE_TTL_MS : LIVE_TTL_MS
+  let route: RouteResult
+  let liveTraffic: boolean
+  if (useDeparture) {
+    try {
+      // Branch rather than passing `undefined`: a trailing undefined
+      // argument would break two-argument call assertions in the test suite.
+      route = await calculateRoute(origin, dest, { departureTime })
+      liveTraffic = false
+    } catch {
+      // The Routes API rejected the request — possibly because of
+      // departureTime itself. Retry without it rather than losing the
+      // estimate entirely; the same call without departureTime would have
+      // succeeded before this feature existed.
+      route = await calculateRoute(origin, dest)
+      liveTraffic = true
+    }
+  } else {
+    route = await calculateRoute(origin, dest)
+    liveTraffic = true
+  }
+
+  const ttl = liveTraffic ? LIVE_TTL_MS : FUTURE_TTL_MS
   routeCache.set(key, {
     minutes: route.durationMinutes,
     expiresAt: Date.now() + ttl,

@@ -1,7 +1,10 @@
 import { computeDrivingTimesForDay, clearRouteCache } from "../driving-times"
 
-// Mock google-maps
+// Mock google-maps, but keep the real isUsableDepartureTime — driving-times.ts
+// relies on its actual 60-second-margin semantics against the (possibly faked)
+// system clock, not a test double.
 jest.mock("../google-maps", () => ({
+  ...jest.requireActual("../google-maps"),
   calculateRoute: jest.fn(),
 }))
 
@@ -226,5 +229,116 @@ describe("computeDrivingTimesForDay — departure times", () => {
   it("does not consult the timezone helper when `when` is omitted", async () => {
     await computeDrivingTimesForDay(accommodations, activity)
     expect(mockedDepartureInstant).not.toHaveBeenCalled()
+  })
+
+  it("does not send a past departure instant, and caches the result with the live TTL", async () => {
+    const past = new Date(Date.now() - 60 * 60 * 1000)
+    mockedDepartureInstant.mockResolvedValue(past)
+
+    await computeDrivingTimesForDay(accommodations, activity, when)
+
+    // Two-argument form: a past departure is not "usable", so it must not
+    // be sent — the same predicate calculateRoute itself uses.
+    expect(mockedCalculateRoute).toHaveBeenCalledWith(
+      { lat: 1, lng: 2 },
+      { lat: 3, lng: 4 }
+    )
+  })
+})
+
+describe("computeDrivingTimesForDay — cache TTL expiry", () => {
+  const accommodations = [{ name: "Hotel A", coordinates: { lat: 1, lng: 2 } }]
+  const activity = {
+    attraction: { lat: 3, lng: 4 },
+    restaurant: null,
+    groceryStore: null,
+  }
+  const when = { dayDate: new Date("2026-01-01T00:00:00.000Z"), timeStart: "09:00" }
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    clearRouteCache()
+    mockedCalculateRoute.mockResolvedValue({ durationMinutes: 25, distanceKm: 18.5 })
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
+  })
+
+  it("keeps a future-dated entry cached past the 1-hour live TTL, and expires it past 24 hours", async () => {
+    jest.useFakeTimers()
+    const now = new Date("2026-01-01T00:00:00.000Z")
+    jest.setSystemTime(now)
+
+    // Well beyond the 60s "usable" margin measured against the faked clock.
+    const departure = new Date(now.getTime() + 2 * 60 * 60 * 1000)
+    mockedDepartureInstant.mockResolvedValue(departure)
+
+    await computeDrivingTimesForDay(accommodations, activity, when)
+    expect(mockedCalculateRoute).toHaveBeenCalledTimes(1)
+
+    // Past the 1-hour live TTL — a future-dated entry survives.
+    jest.setSystemTime(new Date(now.getTime() + 90 * 60 * 1000))
+    await computeDrivingTimesForDay(accommodations, activity, when)
+    expect(mockedCalculateRoute).toHaveBeenCalledTimes(1)
+
+    // Past the 24-hour future TTL — must be recomputed.
+    jest.setSystemTime(new Date(now.getTime() + 25 * 60 * 60 * 1000))
+    await computeDrivingTimesForDay(accommodations, activity, when)
+    expect(mockedCalculateRoute).toHaveBeenCalledTimes(2)
+  })
+
+  it("expires a live-traffic (@live) entry after the 1-hour TTL", async () => {
+    jest.useFakeTimers()
+    const now = new Date("2026-01-01T00:00:00.000Z")
+    jest.setSystemTime(now)
+
+    mockedDepartureInstant.mockResolvedValue(undefined)
+
+    await computeDrivingTimesForDay(accommodations, activity, when)
+    expect(mockedCalculateRoute).toHaveBeenCalledTimes(1)
+
+    jest.setSystemTime(new Date(now.getTime() + 61 * 60 * 1000))
+    await computeDrivingTimesForDay(accommodations, activity, when)
+    expect(mockedCalculateRoute).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe("computeDrivingTimesForDay — retries when departureTime is rejected", () => {
+  const accommodations = [{ name: "Hotel A", coordinates: { lat: 1, lng: 2 } }]
+  const activity = {
+    attraction: { lat: 3, lng: 4 },
+    restaurant: null,
+    groceryStore: null,
+  }
+  const when = { dayDate: new Date("2099-09-14T00:00:00.000Z"), timeStart: "09:00" }
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    clearRouteCache()
+  })
+
+  it("retries once without departureTime when the departure-time call rejects", async () => {
+    const departure = new Date("2099-09-14T07:00:00.000Z")
+    mockedDepartureInstant.mockResolvedValue(departure)
+
+    mockedCalculateRoute
+      .mockRejectedValueOnce(new Error("Route calculation failed: 400"))
+      .mockResolvedValueOnce({ durationMinutes: 42, distanceKm: 30 })
+
+    const result = await computeDrivingTimesForDay(accommodations, activity, when)
+
+    expect(result).toEqual([{ accommodationName: "Hotel A", minutes: 42 }])
+    expect(mockedCalculateRoute).toHaveBeenNthCalledWith(
+      1,
+      { lat: 1, lng: 2 },
+      { lat: 3, lng: 4 },
+      { departureTime: departure }
+    )
+    expect(mockedCalculateRoute).toHaveBeenNthCalledWith(
+      2,
+      { lat: 1, lng: 2 },
+      { lat: 3, lng: 4 }
+    )
   })
 })
