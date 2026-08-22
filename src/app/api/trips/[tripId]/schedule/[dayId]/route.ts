@@ -163,7 +163,8 @@ export async function PUT(
           places,
           accommodations,
           flights,
-          carRentals
+          carRentals,
+          { dayDate: dayPlan.date, timeStart: raw.timeStart ?? null }
         )
         if (!built) {
           return NextResponse.json(
