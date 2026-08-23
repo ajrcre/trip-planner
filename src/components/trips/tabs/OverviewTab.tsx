@@ -9,7 +9,7 @@ import { CarRentalsList, makeEmptyCarRental, type CarRentalFormData } from "../C
 import { normalizeFlights, normalizeCarRentals } from "@/lib/normalizers"
 import type { ExtractedTripDetails } from "@/lib/gemini"
 import { TripMap } from "@/components/maps/TripMap"
-import { normalizeAccommodations } from "@/lib/accommodations"
+import { normalizeAccommodations, hasUnparseableDates } from "@/lib/accommodations"
 import type { Trip } from "../TripDashboard"
 import { formatUiDateTime } from "@/lib/format-time"
 import { TextWithLinks } from "@/components/shared/TextWithLinks"
@@ -255,6 +255,15 @@ export function OverviewTab({ trip, onUpdated }: { trip: Trip; onUpdated?: () =>
               <div key={idx} className={idx > 0 ? "border-t border-zinc-200 pt-4 dark:border-zinc-700" : ""}>
                 {accommodations.length > 1 && acc.name && (
                   <p className="mb-2 text-sm font-semibold text-zinc-700 dark:text-zinc-300">{acc.name}</p>
+                )}
+                {hasUnparseableDates(acc) && (
+                  <p
+                    className="mb-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                    role="status"
+                  >
+                    ⚠️ תאריכי הצ׳ק-אין/צ׳ק-אאוט אינם תקינים, ולכן הלינה הזו לא נלקחת בחשבון
+                    בחישוב זמני הנסיעה. תקנו את התאריכים כדי לקבל זמנים מדויקים.
+                  </p>
                 )}
                 <div className="flex flex-col gap-2">
                   {accommodations.length === 1 && <InfoRow label="שם" value={acc.name} />}

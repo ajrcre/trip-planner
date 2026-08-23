@@ -3,7 +3,12 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { syncLogisticsActivities } from "@/lib/sync-logistics"
 import { normalizeAccommodations, getAccommodationsForDay } from "@/lib/accommodations"
-import { computeDrivingTimesForDay, DrivingTimeFromLodging } from "@/lib/driving-times"
+import {
+  computeDrivingTimesForDay,
+  refreshTravelLegMinutes,
+  DrivingTimeFromLodging,
+} from "@/lib/driving-times"
+import { parseTravelLegJson } from "@/types/travel-leg"
 import { requireTripAccess } from "@/lib/trip-access"
 import { getPlaceDetails } from "@/lib/google-maps"
 
@@ -178,8 +183,10 @@ export async function GET(
   const enrichedDayPlans = await Promise.all(
     dayPlans.map(async (dayPlan) => {
       const dayDate = dayPlan.date.toISOString().split("T")[0]
+      // Keep the per-day status: it is what lets a chip say whether it is
+      // measured from the lodging being left or the one being arrived at.
       const dayAccommodations = getAccommodationsForDay(accommodations, dayDate)
-        .map((a) => a.accommodation)
+        .map((a) => ({ ...a.accommodation, status: a.status }))
 
       const enrichedActivities = await Promise.all(
         dayPlan.activities.map(async (activity) => {
@@ -204,7 +211,22 @@ export async function GET(
             })
           )
 
-          return { ...activity, drivingTimesFromLodging, alternatives: enrichedAlternatives }
+          // Stored driveMinutes is frozen at save time, so refresh it at the
+          // leg's scheduled departure the same way the lodging chips are.
+          const travelLeg =
+            activity.type === "travel"
+              ? await refreshTravelLegMinutes(parseTravelLegJson(activity.travelLeg), {
+                  dayDate: dayPlan.date,
+                  timeStart: activity.timeStart,
+                })
+              : activity.travelLeg
+
+          return {
+            ...activity,
+            travelLeg,
+            drivingTimesFromLodging,
+            alternatives: enrichedAlternatives,
+          }
         })
       )
 

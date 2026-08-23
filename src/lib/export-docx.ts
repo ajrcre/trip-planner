@@ -17,6 +17,7 @@ import { formatUiDateTime } from "@/lib/format-time"
 
 import { parseDayHours, DAY_NAMES_EN, DAY_NAMES_HE, formatAmPmTimesInText } from "@/lib/time-parsing"
 import { alternativePlanLabel } from "@/lib/activity-alternatives"
+import { formatMinutes } from "@/lib/format-duration"
 
 // A4 page: 11906 DXA wide, 1440 DXA margins each side = 9026 DXA content width
 const CONTENT_WIDTH = 9026
@@ -384,7 +385,7 @@ function buildScheduleSection(
             indent: { right: 400 },
             children: [
               new TextRun({
-                text: `🚗 ${activity.travelLeg.driveMinutes} דקות נסיעה משוערות`,
+                text: `🚗 ${formatMinutes(activity.travelLeg.driveMinutes)} נסיעה משוערות`,
                 rightToLeft: true,
                 size: 18,
                 color: "7C3AED",

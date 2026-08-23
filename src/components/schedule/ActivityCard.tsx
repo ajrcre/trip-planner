@@ -14,6 +14,8 @@ import { typeConfig, getMealLabel } from "@/lib/schedule-display"
 import { useOnlineStatus } from "@/hooks/useOnlineStatus"
 import { Icon } from "@/components/icons/Icon"
 import { GoogleMapsIcon, WazeIcon } from "@/components/icons/brands"
+import { formatMinutes, formatTimeRange } from "@/lib/format-duration"
+import type { DrivingTimeFromLodging } from "@/lib/driving-times"
 
 export interface PlaceData {
   id: string
@@ -39,7 +41,7 @@ export interface ActivityAlternativeData {
   attraction: PlaceData | null
   restaurant: PlaceData | null
   groceryStore: PlaceData | null
-  drivingTimesFromLodging?: { accommodationName: string; minutes: number }[]
+  drivingTimesFromLodging?: DrivingTimeFromLodging[]
 }
 
 export interface ActivityData {
@@ -56,7 +58,7 @@ export interface ActivityData {
   attraction: PlaceData | null
   restaurant: PlaceData | null
   groceryStore: PlaceData | null
-  drivingTimesFromLodging?: { accommodationName: string; minutes: number }[]
+  drivingTimesFromLodging?: DrivingTimeFromLodging[]
   travelLeg?: TravelLegStored | null
   alternatives?: ActivityAlternativeData[]
 }
@@ -133,26 +135,15 @@ function PlaceDetailRows({ place }: { place: PlaceData }) {
   )
 }
 
-function formatDuration(timeStart: string, timeEnd: string): string {
-  const [sh, sm] = timeStart.split(":").map(Number)
-  const [eh, em] = timeEnd.split(":").map(Number)
-  const totalMins = (eh * 60 + em) - (sh * 60 + sm)
-  if (totalMins <= 0) return ""
-  const hours = Math.floor(totalMins / 60)
-  const mins = totalMins % 60
-  if (hours === 0) {
-    if (mins === 15) return "רבע שעה"
-    if (mins === 30) return "חצי שעה"
-    return `${mins} דק׳`
-  }
-  if (hours === 1 && mins === 0) return "שעה"
-  if (hours === 1 && mins === 15) return "שעה ורבע"
-  if (hours === 1 && mins === 30) return "שעה וחצי"
-  if (hours === 2 && mins === 0) return "שעתיים"
-  if (hours === 2 && mins === 30) return "שעתיים וחצי"
-  if (mins === 0) return `${hours} שעות`
-  if (mins === 30) return `${hours} שעות וחצי`
-  return `${hours} שע׳ ${mins} דק׳`
+/**
+ * Label for a lodging travel-time chip: always the accommodation, plus its
+ * role on days that move between two, so it is unambiguous which lodging the
+ * time is measured from.
+ */
+function lodgingLabel(dt: DrivingTimeFromLodging): string {
+  const role =
+    dt.status === "check-in" ? "כניסה" : dt.status === "check-out" ? "יציאה" : null
+  return role ? `${dt.accommodationName} · ${role}` : dt.accommodationName
 }
 
 interface ActivityCardProps {
@@ -654,7 +645,7 @@ export function ActivityCard({
                 {activity.timeEnd ?? ""}
                 {(() => {
                   if (!activity.timeStart || !activity.timeEnd) return ""
-                  const d = formatDuration(activity.timeStart, activity.timeEnd)
+                  const d = formatTimeRange(activity.timeStart, activity.timeEnd)
                   return d ? ` (${d})` : ""
                 })()}
               </span>
@@ -700,7 +691,7 @@ export function ActivityCard({
 
             {activity.type === "travel" && activity.travelLeg?.driveMinutes != null && (
               <span className="inline-flex items-center gap-1 text-xs font-medium text-violet-600 dark:text-violet-400">
-                <Icon name="travel" size="sm" /> {activity.travelLeg.driveMinutes} דק׳ נסיעה משוערות
+                <Icon name="travel" size="sm" /> {formatMinutes(activity.travelLeg.driveMinutes)} נסיעה משוערות
               </span>
             )}
 
@@ -739,17 +730,15 @@ export function ActivityCard({
                   {activity.drivingTimesFromLodging.map((dt, i) => (
                     <span
                       key={i}
-                      className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+                      className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
                       title={`נסיעה מ${dt.accommodationName}`}
                     >
                       <Icon name="lodging" size="xs" />
                       <Icon name="travel" size="xs" />
-                      {dt.minutes} דק׳
-                      {activity.drivingTimesFromLodging!.length > 1 && (
-                        <span className="text-blue-400 dark:text-blue-500">
-                          ({dt.accommodationName})
-                        </span>
-                      )}
+                      {formatMinutes(dt.minutes)}
+                      <span className="max-w-[11rem] truncate text-blue-400 dark:text-blue-500">
+                        {lodgingLabel(dt)}
+                      </span>
                     </span>
                   ))}
                 </div>
@@ -856,17 +845,15 @@ export function ActivityCard({
                               {alt.drivingTimesFromLodging.map((dt, i) => (
                                 <span
                                   key={i}
-                                  className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+                                  className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
                                   title={`נסיעה מ${dt.accommodationName}`}
                                 >
                                   <Icon name="lodging" size="xs" />
-                      <Icon name="travel" size="xs" />
-                      {dt.minutes} דק׳
-                                  {alt.drivingTimesFromLodging!.length > 1 && (
-                                    <span className="text-blue-400 dark:text-blue-500">
-                                      ({dt.accommodationName})
-                                    </span>
-                                  )}
+                                  <Icon name="travel" size="xs" />
+                                  {formatMinutes(dt.minutes)}
+                                  <span className="max-w-[11rem] truncate text-blue-400 dark:text-blue-500">
+                                    {lodgingLabel(dt)}
+                                  </span>
                                 </span>
                               ))}
                             </div>

@@ -91,6 +91,8 @@ export function clearRouteCache() {
 interface AccommodationForDriving {
   name?: string
   coordinates?: { lat: number; lng: number }
+  /** Role on this specific day, when the caller knows it. */
+  status?: "check-in" | "check-out" | "staying"
 }
 
 interface ActivityForDriving {
@@ -102,6 +104,11 @@ interface ActivityForDriving {
 export interface DrivingTimeFromLodging {
   accommodationName: string
   minutes: number
+  /**
+   * Role of this lodging on the day. Lets the UI say which one a travel time
+   * is measured from when a day moves between two.
+   */
+  status?: "check-in" | "check-out" | "staying"
 }
 
 /**
@@ -144,6 +151,7 @@ export async function computeDrivingTimesForDay(
       results.push({
         accommodationName: acc.name || "לינה",
         minutes,
+        status: acc.status,
       })
     } catch {
       // Skip this accommodation if route calculation fails
@@ -151,4 +159,47 @@ export async function computeDrivingTimesForDay(
   }
 
   return results
+}
+
+/**
+ * Recompute a stored travel leg's drive time at its scheduled departure.
+ *
+ * `driveMinutes` is written into the activity's JSON when the day is saved and
+ * is never revisited, so a value captured during a one-off jam stays frozen on
+ * the card indefinitely. The schedule read path calls this so driving cards
+ * refresh the same way the lodging chips already do.
+ *
+ * The stored value is kept as a fallback: if the lookup fails, or the leg has
+ * no resolved coordinates, the leg comes back untouched.
+ */
+export async function refreshTravelLegMinutes<
+  T extends {
+    driveMinutes?: number
+    resolvedOrigin?: { lat: number; lng: number } | null
+    resolvedDestination?: { lat: number; lng: number } | null
+  }
+>(leg: T | null, when?: { dayDate: Date; timeStart: string | null }): Promise<T | null> {
+  if (!leg) return leg
+
+  const from = leg.resolvedOrigin
+  const to = leg.resolvedDestination
+  if (from?.lat == null || from?.lng == null || to?.lat == null || to?.lng == null) {
+    return leg
+  }
+
+  try {
+    const departure = when
+      ? await departureInstant(when.dayDate, when.timeStart, { lat: from.lat, lng: from.lng })
+      : undefined
+
+    const minutes = await getRouteMinutes(
+      { lat: from.lat, lng: from.lng },
+      { lat: to.lat, lng: to.lng },
+      departure
+    )
+    return { ...leg, driveMinutes: minutes }
+  } catch {
+    // Keep whatever was stored rather than blanking the card.
+    return leg
+  }
 }
