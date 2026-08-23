@@ -3,7 +3,12 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { syncLogisticsActivities } from "@/lib/sync-logistics"
 import { normalizeAccommodations, getAccommodationsForDay } from "@/lib/accommodations"
-import { computeDrivingTimesForDay, DrivingTimeFromLodging } from "@/lib/driving-times"
+import {
+  computeDrivingTimesForDay,
+  refreshTravelLegMinutes,
+  DrivingTimeFromLodging,
+} from "@/lib/driving-times"
+import { parseTravelLegJson } from "@/types/travel-leg"
 import { requireTripAccess } from "@/lib/trip-access"
 import { getPlaceDetails } from "@/lib/google-maps"
 
@@ -204,7 +209,22 @@ export async function GET(
             })
           )
 
-          return { ...activity, drivingTimesFromLodging, alternatives: enrichedAlternatives }
+          // Stored driveMinutes is frozen at save time, so refresh it at the
+          // leg's scheduled departure the same way the lodging chips are.
+          const travelLeg =
+            activity.type === "travel"
+              ? await refreshTravelLegMinutes(parseTravelLegJson(activity.travelLeg), {
+                  dayDate: dayPlan.date,
+                  timeStart: activity.timeStart,
+                })
+              : activity.travelLeg
+
+          return {
+            ...activity,
+            travelLeg,
+            drivingTimesFromLodging,
+            alternatives: enrichedAlternatives,
+          }
         })
       )
 

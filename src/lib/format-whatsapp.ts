@@ -5,6 +5,7 @@ import { parseDayHours, DAY_NAMES_EN, DAY_NAMES_HE, formatAmPmTimesInText } from
 import { googleMapsUrl } from "@/lib/url-helpers"
 import { alternativePlanLabel } from "@/lib/activity-alternatives"
 import { typeConfig, dayTypeConfig, getMealLabel, formatDayDate } from "@/lib/schedule-display"
+import { formatMinutes } from "@/lib/format-duration"
 
 function getOpeningHoursForDate(openingHours: unknown, dateStr: string): string | null {
   const allHours = parseDayHours(openingHours)
@@ -51,7 +52,7 @@ function formatActivity(
       lines.push(`🗺️ https://www.google.com/maps/dir/?api=1&origin=${o.lat},${o.lng}&destination=${d.lat},${d.lng}&travelmode=driving`)
     }
     if (activity.travelLeg.driveMinutes != null) {
-      lines.push(`🚗 _${activity.travelLeg.driveMinutes} דק׳ נסיעה משוערות_`)
+      lines.push(`🚗 _${formatMinutes(activity.travelLeg.driveMinutes)} נסיעה משוערות_`)
     }
   } else if (
     activity.type === "rest" &&

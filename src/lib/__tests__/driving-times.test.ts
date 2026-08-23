@@ -1,4 +1,8 @@
-import { computeDrivingTimesForDay, clearRouteCache } from "../driving-times"
+import {
+  computeDrivingTimesForDay,
+  clearRouteCache,
+  refreshTravelLegMinutes,
+} from "../driving-times"
 
 // Mock google-maps, but keep the real isUsableDepartureTime — driving-times.ts
 // relies on its actual 60-second-margin semantics against the (possibly faked)
@@ -340,5 +344,70 @@ describe("computeDrivingTimesForDay — retries when departureTime is rejected",
       { lat: 1, lng: 2 },
       { lat: 3, lng: 4 }
     )
+  })
+})
+
+describe("refreshTravelLegMinutes", () => {
+  const leg = {
+    origin: { kind: "lodging" as const, accommodationIndex: 1 },
+    destination: { kind: "attraction" as const, id: "a1" },
+    driveMinutes: 78,
+    resolvedOrigin: { lat: 45.35, lng: 25.55, label: "Hotel Sinaia" },
+    resolvedDestination: { lat: 45.5, lng: 25.58, label: "Predeal" },
+  }
+  const when = { dayDate: new Date("2099-08-25T00:00:00.000Z"), timeStart: "09:30" }
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    clearRouteCache()
+    mockedDepartureInstant.mockResolvedValue(undefined)
+  })
+
+  it("replaces a stale stored driveMinutes with a fresh lookup", async () => {
+    mockedCalculateRoute.mockResolvedValue({ durationMinutes: 27, distanceKm: 20 })
+
+    const result = await refreshTravelLegMinutes(leg, when)
+
+    expect(result?.driveMinutes).toBe(27)
+    expect(mockedCalculateRoute).toHaveBeenCalledWith(
+      { lat: 45.35, lng: 25.55 },
+      { lat: 45.5, lng: 25.58 }
+    )
+  })
+
+  it("uses the activity's departure time", async () => {
+    const departure = new Date("2099-08-25T06:30:00.000Z")
+    mockedDepartureInstant.mockResolvedValue(departure)
+    mockedCalculateRoute.mockResolvedValue({ durationMinutes: 31, distanceKm: 20 })
+
+    await refreshTravelLegMinutes(leg, when)
+
+    expect(mockedCalculateRoute).toHaveBeenCalledWith(
+      { lat: 45.35, lng: 25.55 },
+      { lat: 45.5, lng: 25.58 },
+      { departureTime: departure }
+    )
+  })
+
+  it("keeps the stored value when the route lookup fails", async () => {
+    mockedCalculateRoute.mockRejectedValue(new Error("API down"))
+
+    const result = await refreshTravelLegMinutes(leg, when)
+
+    expect(result?.driveMinutes).toBe(78)
+  })
+
+  it("returns the leg untouched when it has no resolved coordinates", async () => {
+    const bare = { origin: leg.origin, destination: leg.destination, driveMinutes: 42 }
+
+    const result = await refreshTravelLegMinutes(bare, when)
+
+    expect(result).toEqual(bare)
+    expect(mockedCalculateRoute).not.toHaveBeenCalled()
+  })
+
+  it("returns null unchanged", async () => {
+    expect(await refreshTravelLegMinutes(null, when)).toBeNull()
+    expect(mockedCalculateRoute).not.toHaveBeenCalled()
   })
 })

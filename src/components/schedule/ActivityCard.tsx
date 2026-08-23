@@ -12,6 +12,7 @@ import { MarkdownTextarea } from "@/components/shared/MarkdownTextarea"
 import { alternativePlanLabel, supportsAlternatives } from "@/lib/activity-alternatives"
 import { typeConfig, getMealLabel } from "@/lib/schedule-display"
 import { useOnlineStatus } from "@/hooks/useOnlineStatus"
+import { formatMinutes, formatTimeRange } from "@/lib/format-duration"
 
 export interface PlaceData {
   id: string
@@ -71,27 +72,6 @@ function hrefForUserWebsite(raw: string): string {
   return `https://${t}`
 }
 
-function formatDuration(timeStart: string, timeEnd: string): string {
-  const [sh, sm] = timeStart.split(":").map(Number)
-  const [eh, em] = timeEnd.split(":").map(Number)
-  const totalMins = (eh * 60 + em) - (sh * 60 + sm)
-  if (totalMins <= 0) return ""
-  const hours = Math.floor(totalMins / 60)
-  const mins = totalMins % 60
-  if (hours === 0) {
-    if (mins === 15) return "רבע שעה"
-    if (mins === 30) return "חצי שעה"
-    return `${mins} דק׳`
-  }
-  if (hours === 1 && mins === 0) return "שעה"
-  if (hours === 1 && mins === 15) return "שעה ורבע"
-  if (hours === 1 && mins === 30) return "שעה וחצי"
-  if (hours === 2 && mins === 0) return "שעתיים"
-  if (hours === 2 && mins === 30) return "שעתיים וחצי"
-  if (mins === 0) return `${hours} שעות`
-  if (mins === 30) return `${hours} שעות וחצי`
-  return `${hours} שע׳ ${mins} דק׳`
-}
 
 interface ActivityCardProps {
   activity: ActivityData
@@ -592,7 +572,7 @@ export function ActivityCard({
                 {activity.timeEnd ?? ""}
                 {(() => {
                   if (!activity.timeStart || !activity.timeEnd) return ""
-                  const d = formatDuration(activity.timeStart, activity.timeEnd)
+                  const d = formatTimeRange(activity.timeStart, activity.timeEnd)
                   return d ? ` (${d})` : ""
                 })()}
               </span>
@@ -638,7 +618,7 @@ export function ActivityCard({
 
             {activity.type === "travel" && activity.travelLeg?.driveMinutes != null && (
               <span className="text-xs font-medium text-violet-600 dark:text-violet-400">
-                {"\u{1F697}"} {activity.travelLeg.driveMinutes} דק׳ נסיעה משוערות
+                {"\u{1F697}"} {formatMinutes(activity.travelLeg.driveMinutes)} נסיעה משוערות
               </span>
             )}
 
@@ -677,10 +657,10 @@ export function ActivityCard({
                   {activity.drivingTimesFromLodging.map((dt, i) => (
                     <span
                       key={i}
-                      className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+                      className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
                       title={`נסיעה מ${dt.accommodationName}`}
                     >
-                      🏨→🚗 {dt.minutes} דק׳
+                      🏨→🚗 {formatMinutes(dt.minutes)}
                       {activity.drivingTimesFromLodging!.length > 1 && (
                         <span className="text-blue-400 dark:text-blue-500">
                           ({dt.accommodationName})
@@ -847,10 +827,10 @@ export function ActivityCard({
                               {alt.drivingTimesFromLodging.map((dt, i) => (
                                 <span
                                   key={i}
-                                  className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+                                  className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
                                   title={`נסיעה מ${dt.accommodationName}`}
                                 >
-                                  🏨→🚗 {dt.minutes} דק׳
+                                  🏨→🚗 {formatMinutes(dt.minutes)}
                                   {alt.drivingTimesFromLodging!.length > 1 && (
                                     <span className="text-blue-400 dark:text-blue-500">
                                       ({dt.accommodationName})
