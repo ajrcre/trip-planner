@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { calculateRoute } from "@/lib/google-maps"
 import { normalizeAccommodations } from "@/lib/accommodations"
 import { requireTripAccess } from "@/lib/trip-access"
+import { mapAttractionType } from "@/lib/attraction-types"
 
 export async function GET(
   _request: Request,
@@ -53,7 +54,11 @@ export async function POST(
     status,
     bookingRequired,
     specialNotes,
+    attractionType,
+    types,
   } = body
+
+  const resolvedAttractionType = attractionType ?? mapAttractionType(types ?? [])
 
   // Calculate travel time from accommodation if coordinates are available
   let travelTimeMinutes: number | null = null
@@ -93,6 +98,7 @@ export async function POST(
       status: status ?? "maybe",
       bookingRequired: bookingRequired ?? false,
       specialNotes,
+      attractionType: resolvedAttractionType,
       travelTimeMinutes,
       travelDistanceKm,
       dataSource: "google_places",

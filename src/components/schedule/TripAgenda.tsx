@@ -3,7 +3,7 @@
 import { useState } from "react"
 import type { DayPlanData } from "./DayTimeline"
 import type { ActivityData } from "./ActivityCard"
-import type { DailyWeather } from "@/lib/weather"
+import { weatherIcon, type DailyWeather } from "@/lib/weather"
 import { type Accommodation, getAccommodationsForDay } from "@/lib/accommodations"
 import { googleMapsUrl } from "@/lib/url-helpers"
 import { TextWithLinks } from "@/components/shared/TextWithLinks"
@@ -13,6 +13,7 @@ import {
   activityPlace,
   activityDisplay,
 } from "@/lib/schedule-display"
+import { Icon, IconOf } from "@/components/icons/Icon"
 
 interface TripAgendaProps {
   dayPlans: DayPlanData[]
@@ -58,8 +59,8 @@ function ActivityRow({
   activity: ActivityData
   accommodations: Accommodation[]
 }) {
-  const { icon, label } = activityDisplay(activity)
   const place = activityPlace(activity)
+  const { label, Icon: ActivityIcon } = activityDisplay(activity, place)
   const name = activityName(activity, accommodations)
   // When there is no place, the notes double as the title (as in ActivityCard),
   // so they must not also be repeated underneath.
@@ -83,8 +84,8 @@ function ActivityRow({
         >
           {timeText ?? "—"}
         </span>
-        <span className="text-xs text-zinc-400 dark:text-zinc-500">
-          <span aria-hidden="true">{icon}</span> {label}
+        <span className="inline-flex items-center gap-1 text-xs text-zinc-400 dark:text-zinc-500">
+          <IconOf component={ActivityIcon} size="sm" /> {label}
         </span>
       </div>
 
@@ -172,12 +173,12 @@ export function TripAgenda({
               className="flex min-h-11 w-full flex-wrap items-center gap-x-3 gap-y-1 rounded-t-xl border-b border-zinc-200 bg-zinc-50 px-3 py-2 text-start hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-700"
             >
               <span className="text-sm font-semibold">
-                <span aria-hidden="true">{config.icon}</span> {formatDayDate(day.date)}
+                <IconOf component={config.Icon} size="sm" className="inline-block align-[-2px]" /> {formatDayDate(day.date)}
               </span>
               <span className="text-xs text-zinc-400 dark:text-zinc-500">{config.label}</span>
               {dayWeather && (
                 <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                  <span aria-hidden="true">{dayWeather.condition.icon}</span>{" "}
+                  <IconOf component={weatherIcon(dayWeather.condition.code)} size="sm" className="inline-block align-[-2px]" />{" "}
                   {dayWeather.temperatureMax}°
                 </span>
               )}
@@ -186,7 +187,7 @@ export function TripAgenda({
                   key={i}
                   className="max-w-[45%] truncate text-xs text-blue-500 dark:text-blue-400"
                 >
-                  <span aria-hidden="true">🏨</span>{" "}
+                  <Icon name="lodging" size="sm" className="inline-block align-[-2px]" />{" "}
                   {status === "check-in" ? "כניסה: " : status === "check-out" ? "יציאה: " : ""}
                   {accommodation.name || "לינה"}
                 </span>
@@ -196,9 +197,7 @@ export function TripAgenda({
             <div className="flex flex-col px-3 py-2 sm:px-4">
               {day.notes && (
                 <div className="mb-2 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-2 dark:border-amber-700 dark:bg-amber-900/20">
-                  <span className="text-sm text-amber-600 dark:text-amber-400" aria-hidden="true">
-                    📌
-                  </span>
+                  <Icon name="note" size="md" className="mt-0.5 text-amber-600 dark:text-amber-400" />
                   <TextWithLinks
                     text={day.notes}
                     className="min-w-0 flex-1 text-xs break-words text-amber-800 dark:text-amber-300"

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import type { TripRole } from "@/types/sharing"
 import { useOnlineStatus } from "@/hooks/useOnlineStatus"
+import { Icon } from "@/components/icons/Icon"
 
 interface FamilyMember {
   id: string
@@ -328,7 +329,7 @@ function AdditionalContextEditor({
           </button>
         )}
         {saved && canEdit && value !== (initial ?? "") && (
-          <span className="text-xs text-green-600">נשמר ✓</span>
+          <span className="inline-flex items-center gap-1 text-xs text-green-600"><Icon name="check" size="xs" />נשמר</span>
         )}
       </div>
       {canEdit ? (
@@ -526,7 +527,7 @@ function PreferencesEditor({
             className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50">
             {loading ? "שומר..." : "שמור העדפות"}
           </button>
-          {saved && <span className="text-sm text-emerald-600 dark:text-emerald-400">נשמר בהצלחה ✓</span>}
+          {saved && <span className="inline-flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-400"><Icon name="check" size="sm" />נשמר בהצלחה</span>}
         </div>
       </div>
     </div>
@@ -580,7 +581,7 @@ export function FamilyProfileTab({ tripId, role }: { tripId: string; role: TripR
   if (!profile) {
     return (
       <div className="flex flex-col items-center gap-4 rounded-xl border-2 border-dashed border-zinc-200 py-12 text-center dark:border-zinc-700">
-        <div className="text-4xl">👨‍👩‍👧‍👦</div>
+        <Icon name="population" size="2xl" className="text-zinc-300 dark:text-zinc-600" />
         <div>
           <p className="font-semibold text-zinc-700 dark:text-zinc-300">אין פרופיל משפחה לטיול זה</p>
           <p className="mt-1 text-sm text-zinc-500">ניתן ליצור פרופיל ייעודי לטיול זה</p>

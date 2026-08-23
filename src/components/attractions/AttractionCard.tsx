@@ -4,6 +4,7 @@ import { ItemCard, type DiscoveredItem } from "@/components/shared/ItemCard"
 
 export interface DiscoveredAttraction extends DiscoveredItem {
   types: string[]
+  attractionType: string | null
 }
 
 interface AttractionCardProps {
@@ -70,8 +71,6 @@ export function AttractionCard({
       gradientClasses="from-blue-100 to-blue-200 dark:from-blue-900/30 dark:to-blue-800/30"
       headerTextClasses="text-blue-700 dark:text-blue-300"
       typeContent={<TypeTags attraction={attraction} />}
-      wantLabel={<>&#10084;&#65039; רוצה</>}
-      maybeLabel={<>&#129300; אולי</>}
     />
   )
 }

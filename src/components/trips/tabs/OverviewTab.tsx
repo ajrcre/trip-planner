@@ -14,6 +14,7 @@ import type { Trip } from "../TripDashboard"
 import { formatUiDateTime } from "@/lib/format-time"
 import { TextWithLinks } from "@/components/shared/TextWithLinks"
 import { useOnlineStatus } from "@/hooks/useOnlineStatus"
+import { Icon } from "@/components/icons/Icon"
 
 function formatDate(date: string) {
   return new Date(date).toLocaleDateString("he-IL")
@@ -65,7 +66,7 @@ function NoteBlock({ text }: { text?: string | null }) {
   if (!text) return null
   return (
     <div className="mt-2 flex items-start gap-2 border-t border-zinc-100 pt-2 dark:border-zinc-700">
-      <span className="text-sm text-zinc-400">📝</span>
+      <Icon name="note" size="md" className="mt-0.5 text-zinc-400" />
       <TextWithLinks text={text} className="flex-1 text-sm text-zinc-600 dark:text-zinc-300" />
     </div>
   )

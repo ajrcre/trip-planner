@@ -14,6 +14,7 @@ interface DiscoveredAttraction {
   userRatingCount: number | null
   photos: string[]
   types: string[]
+  attractionType: string | null
   websiteUri?: string | null
   openingHours?: string[] | null
   travelTimeMinutes?: number | null
@@ -76,6 +77,8 @@ export function DiscoveryPanel({
       photos: item.photos,
       website: item.websiteUri,
       openingHours: item.openingHours ? { weekdayDescriptions: item.openingHours } : undefined,
+      attractionType: item.attractionType,
+      types: item.types,
       status,
     }),
     onItemSaved: onAttractionSaved,

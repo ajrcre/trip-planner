@@ -4,6 +4,7 @@ import { Fragment, type ReactNode } from "react"
 import { formatAmPmTimesInText } from "@/lib/time-parsing"
 import { statusLabels, statusColors } from "@/lib/status-config"
 import type { StatusFilter } from "@/hooks/useTableFiltering"
+import { Icon } from "@/components/icons/Icon"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -114,7 +115,7 @@ export function nameColumn<T extends BaseItem>(): ColumnDef<T> {
             className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
             title="פרטים נוספים"
           >
-            {ctx.expandedId === item.id ? "\u25B2" : "\u25BC"}
+            <Icon name={ctx.expandedId === item.id ? "chevronUp" : "chevronDown"} size="sm" />
           </button>
         </div>
         {item.address && (
@@ -151,7 +152,7 @@ export function ratingColumn<T extends BaseItem>(): ColumnDef<T> {
       item.ratingGoogle ? (
         <span className="flex items-center gap-1 whitespace-nowrap">
           {item.ratingGoogle}
-          <span className="text-amber-500">{"\u2605"}</span>
+          <Icon name="star" size="sm" className="fill-current text-amber-500" />
         </span>
       ) : (
         "—"

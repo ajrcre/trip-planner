@@ -18,6 +18,7 @@ import {
 import { useTableFiltering, commonComparators } from "@/hooks/useTableFiltering"
 import { useItemActions } from "@/hooks/useItemActions"
 import { TextWithLinks } from "@/components/shared/TextWithLinks"
+import { Icon } from "@/components/icons/Icon"
 
 interface SavedAttraction extends BaseItem {
   description: string | null
@@ -127,13 +128,13 @@ export function AttractionTable({
                 onClick={() => handleNotesSave(item.id)}
                 className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700"
               >
-                {"\u2713"}
+                <Icon name="check" size="sm" label="שמור" />
               </button>
               <button
                 onClick={() => setEditingNotesId(null)}
                 className="rounded bg-zinc-200 px-2 py-1 text-xs hover:bg-zinc-300 dark:bg-zinc-600"
               >
-                {"\u2717"}
+                <Icon name="close" size="sm" label="בטל" />
               </button>
             </div>
           )
@@ -181,7 +182,7 @@ export function AttractionTable({
               onClick={() => setExpandedId(null)}
               className="text-xs text-zinc-400 hover:text-zinc-600"
             >
-              {"\u2717"} סגור
+              <span className="inline-flex items-center gap-1"><Icon name="close" size="sm" /> סגור</span>
             </button>
           </div>
           <div className="flex flex-col gap-2 text-sm">

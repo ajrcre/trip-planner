@@ -8,6 +8,8 @@ import type {
   PlanFullTripPayload,
   ProposedActivity,
 } from "@/types/ai-chat"
+import { Icon, IconOf } from "@/components/icons/Icon"
+import { actionTypeIcons, activityTypeIcons, fallbackActivityIcon } from "@/lib/icons"
 
 // ── Helper maps ──
 
@@ -21,24 +23,11 @@ const activityTypeLabels: Record<string, string> = {
   lodging: "לינה",
 }
 
-const activityTypeIcons: Record<string, string> = {
-  attraction: "🎢",
-  meal: "🍽️",
-  rest: "☕",
-  travel: "🚗",
-  custom: "📝",
-  grocery: "🛒",
-  lodging: "🏨",
-}
-
-const actionTypeConfig: Record<
-  string,
-  { icon: string; label: string }
-> = {
-  add_activity: { icon: "➕", label: "הוספת פעילות" },
-  remove_activity: { icon: "➖", label: "הסרת פעילות" },
-  replace_day_activities: { icon: "🔄", label: "עדכון יום" },
-  plan_full_trip: { icon: "📋", label: "תכנון טיול מלא" },
+const actionTypeConfig: Record<string, { label: string }> = {
+  add_activity: { label: "הוספת פעילות" },
+  remove_activity: { label: "הסרת פעילות" },
+  replace_day_activities: { label: "עדכון יום" },
+  plan_full_trip: { label: "תכנון טיול מלא" },
 }
 
 // ── Helpers ──
@@ -70,13 +59,13 @@ function formatTimeRange(activity: ProposedActivity): string | null {
 // ── Sub-components ──
 
 function ActivityRow({ activity }: { activity: ProposedActivity }) {
-  const icon = activityTypeIcons[activity.type] || "📝"
+  const ActivityIcon = activityTypeIcons[activity.type] ?? fallbackActivityIcon
   const name = getActivityName(activity)
   const time = formatTimeRange(activity)
 
   return (
     <div className="flex items-center gap-2 rounded-md bg-zinc-50 px-3 py-1.5 text-sm dark:bg-zinc-800">
-      <span>{icon}</span>
+      <IconOf component={ActivityIcon} className="text-zinc-500 dark:text-zinc-400" />
       <span className="font-medium">{name}</span>
       {time && (
         <span className="mr-auto text-xs text-zinc-500 dark:text-zinc-400">
@@ -91,7 +80,7 @@ function AddActivityPreview({ payload }: { payload: AddActivityPayload }) {
   return (
     <div className="space-y-2">
       <p className="text-sm text-zinc-600 dark:text-zinc-300">
-        📅 {formatDate(payload.dayDate)}
+        <Icon name="calendar" size="sm" className="inline-block align-[-2px]" /> {formatDate(payload.dayDate)}
       </p>
       <ActivityRow activity={payload.activity} />
     </div>
@@ -106,10 +95,10 @@ function RemoveActivityPreview({
   return (
     <div className="space-y-2">
       <p className="text-sm text-zinc-600 dark:text-zinc-300">
-        📅 {formatDate(payload.dayDate)}
+        <Icon name="calendar" size="sm" className="inline-block align-[-2px]" /> {formatDate(payload.dayDate)}
       </p>
       <div className="flex items-center gap-2 rounded-md bg-zinc-50 px-3 py-1.5 text-sm line-through opacity-70 dark:bg-zinc-800">
-        <span>❌</span>
+        <Icon name="close" size="sm" className="text-red-500" />
         <span>{payload.activityDescription}</span>
       </div>
     </div>
@@ -120,7 +109,7 @@ function ReplaceDayPreview({ payload }: { payload: ReplaceDayPayload }) {
   return (
     <div className="space-y-2">
       <p className="text-sm text-zinc-600 dark:text-zinc-300">
-        📅 {formatDate(payload.dayDate)} ·{" "}
+        <Icon name="calendar" size="sm" className="inline-block align-[-2px]" /> {formatDate(payload.dayDate)} ·{" "}
         {payload.activities.length} פעילויות
       </p>
       <div className="space-y-1">
@@ -147,7 +136,7 @@ function PlanFullTripPreview({ payload }: { payload: PlanFullTripPayload }) {
         {payload.days.map((day) => (
           <div key={day.dayDate} className="space-y-1">
             <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-              📅 {formatDate(day.dayDate)}
+              <Icon name="calendar" size="sm" className="inline-block align-[-2px]" /> {formatDate(day.dayDate)}
             </p>
             {day.activities.map((activity, i) => (
               <ActivityRow key={i} activity={activity} />
@@ -191,18 +180,22 @@ export default function ActionProposalCard({
     <div className={`rounded-lg border p-4 ${cardStyle}`}>
       {/* Header */}
       <div className="mb-3 flex items-center gap-2">
-        <span className="text-lg">{config.icon}</span>
+        <IconOf
+          component={actionTypeIcons[proposal.actionType] ?? fallbackActivityIcon}
+          size="lg"
+          className="text-zinc-600 dark:text-zinc-300"
+        />
         <span className="font-semibold text-zinc-800 dark:text-zinc-100">
           {config.label}
         </span>
         {proposal.status === "approved" && (
           <span className="mr-auto rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900 dark:text-green-300">
-            ✅ אושר
+            <Icon name="check" size="xs" className="ml-1 inline-block align-[-1px]" />אושר
           </span>
         )}
         {proposal.status === "rejected" && (
           <span className="mr-auto rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900 dark:text-red-300">
-            ❌ בוטל
+            <Icon name="close" size="xs" className="ml-1 inline-block align-[-1px]" />בוטל
           </span>
         )}
       </div>
@@ -247,15 +240,19 @@ export default function ActionProposalCard({
             {isExecuting ? (
               <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
             ) : (
-              "✅ אשר"
+              <>
+                <Icon name="check" size="md" />
+                אשר
+              </>
             )}
           </button>
           <button
             onClick={onReject}
             disabled={isExecuting}
-            className="rounded-md border border-zinc-300 px-4 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            className="flex items-center gap-1 rounded-md border border-zinc-300 px-4 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
-            ❌ בטל
+            <Icon name="close" size="md" />
+            בטל
           </button>
         </div>
       )}

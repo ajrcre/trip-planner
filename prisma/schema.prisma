@@ -185,6 +185,8 @@ model Attraction {
   nearbyRestaurantId String?
   bookingRequired    Boolean @default(false)
 
+  attractionType String?
+
   kidFriendlyScore     Int?
   kidFriendlyReasoning String? @db.Text
   specialNotes         String? @db.Text

@@ -5,6 +5,8 @@ import type { DestinationInfo } from "@/lib/gemini"
 import { formatUiDateTimeLong } from "@/lib/format-time"
 import { DestinationMap } from "@/components/trips/DestinationMap"
 import { SpeakButton, getSpeechLang } from "@/components/shared/SpeakButton"
+import { Icon } from "@/components/icons/Icon"
+import type { IconName } from "@/lib/icons"
 
 interface DestinationOverviewProps {
   tripId: string
@@ -84,16 +86,16 @@ export function DestinationOverview({
 
   const speechLang = getSpeechLang(info.countryCode)
 
-  const glanceCards = [
-    { icon: "🏛️", label: "בירה", value: info.atAGlance.capital },
-    { icon: "👥", label: "אוכלוסיה", value: info.atAGlance.population },
-    { icon: "🗣️", label: "שפות", value: info.atAGlance.languages },
-    { icon: "💰", label: "מטבע", value: info.atAGlance.currency },
-    { icon: "💱", label: "שער חליפין", value: info.atAGlance.exchangeRate },
-    { icon: "🕐", label: "אזור זמן", value: info.atAGlance.timezone },
-    { icon: "🔌", label: "חשמל", value: info.atAGlance.electricPlug },
-    { icon: "🚨", label: "חירום", value: info.atAGlance.emergencyNumber },
-    { icon: "💵", label: "טיפים", value: info.atAGlance.tippingCustoms },
+  const glanceCards: { icon: IconName; label: string; value: string }[] = [
+    { icon: "capital", label: "בירה", value: info.atAGlance.capital },
+    { icon: "population", label: "אוכלוסיה", value: info.atAGlance.population },
+    { icon: "languages", label: "שפות", value: info.atAGlance.languages },
+    { icon: "currency", label: "מטבע", value: info.atAGlance.currency },
+    { icon: "exchangeRate", label: "שער חליפין", value: info.atAGlance.exchangeRate },
+    { icon: "timezone", label: "אזור זמן", value: info.atAGlance.timezone },
+    { icon: "plug", label: "חשמל", value: info.atAGlance.electricPlug },
+    { icon: "emergency", label: "חירום", value: info.atAGlance.emergencyNumber },
+    { icon: "tipping", label: "טיפים", value: info.atAGlance.tippingCustoms },
   ]
 
   return (
@@ -152,8 +154,9 @@ export function DestinationOverview({
               key={card.label}
               className="overflow-hidden rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-800"
             >
-              <div className="text-xs text-zinc-500">
-                {card.icon} {card.label}
+              <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+                <Icon name={card.icon} size="sm" />
+                {card.label}
               </div>
               <div className="mt-1 break-words text-sm font-medium text-zinc-900 dark:text-zinc-100">
                 {card.value}
@@ -187,8 +190,9 @@ export function DestinationOverview({
 
       {/* Kids Corner */}
       <section>
-        <h3 className="mb-3 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-          🧒 פינת הילדים
+        <h3 className="mb-3 flex items-center gap-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+          <Icon name="kids" size="lg" className="text-amber-500" />
+          פינת הילדים
         </h3>
         <div className="space-y-3">
           {/* Fun Facts */}
@@ -202,7 +206,7 @@ export function DestinationOverview({
                   key={i}
                   className="flex gap-2 text-sm text-zinc-700 dark:text-zinc-300"
                 >
-                  <span className="text-amber-500">✦</span>
+                  <Icon name="bullet" size="sm" className="mt-0.5 text-amber-500" />
                   {fact}
                 </li>
               ))}

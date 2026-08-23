@@ -7,6 +7,7 @@ import {
   DAY_NAMES_HE,
   formatAmPmTimesInText,
 } from "@/lib/time-parsing"
+import { Icon } from "@/components/icons/Icon"
 
 export function OpeningHoursSection({ openingHours, scheduleDate }: { openingHours: unknown; scheduleDate?: string }) {
   const [showAll, setShowAll] = useState(false)
@@ -23,7 +24,7 @@ export function OpeningHoursSection({ openingHours, scheduleDate }: { openingHou
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-1.5">
-        <span className="text-xs">🕐</span>
+        <Icon name="hours" size="sm" className="text-zinc-500 dark:text-zinc-400" />
         {today ? (
           <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
             {scheduleDate ? "" : "היום ("}{DAY_NAMES_HE[today.dayName] ?? today.dayName}{scheduleDate ? "" : ")"}:{" "}

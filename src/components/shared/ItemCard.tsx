@@ -2,6 +2,7 @@
 
 import { type ReactNode } from "react"
 import { RatingStars } from "./RatingStars"
+import { Icon } from "@/components/icons/Icon"
 import { googleMapsUrl } from "@/lib/url-helpers"
 import { formatAmPmTimesInText } from "@/lib/time-parsing"
 
@@ -209,21 +210,24 @@ export function ItemCard<T extends DiscoveredItem>({
         {/* Action buttons */}
         <div className="mt-auto flex gap-2 pt-2">
           {isSaved ? (
-            <span className="flex w-full items-center justify-center rounded-lg bg-green-50 py-1.5 text-xs font-medium text-green-700 dark:bg-green-900/20 dark:text-green-400">
-              &#10003; נשמר
+            <span className="flex w-full items-center justify-center gap-1 rounded-lg bg-green-50 py-1.5 text-xs font-medium text-green-700 dark:bg-green-900/20 dark:text-green-400">
+              <Icon name="check" size="sm" />
+              נשמר
             </span>
           ) : (
             <>
               <button
                 onClick={() => onSave(item, "want")}
-                className="flex-1 rounded-lg bg-rose-50 py-1.5 text-xs font-medium text-rose-700 transition-colors hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-400 dark:hover:bg-rose-900/30"
+                className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-rose-50 py-1.5 text-xs font-medium text-rose-700 transition-colors hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-400 dark:hover:bg-rose-900/30"
               >
+                <Icon name="want" size="sm" />
                 {wantLabel ?? "רוצה"}
               </button>
               <button
                 onClick={() => onSave(item, "maybe")}
-                className="flex-1 rounded-lg bg-amber-50 py-1.5 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/30"
+                className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-amber-50 py-1.5 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/30"
               >
+                <Icon name="maybe" size="sm" />
                 {maybeLabel ?? "אולי"}
               </button>
               <button
@@ -231,7 +235,7 @@ export function ItemCard<T extends DiscoveredItem>({
                 className="rounded-lg bg-zinc-100 px-2 py-1.5 text-xs font-medium text-zinc-500 transition-colors hover:bg-zinc-200 dark:bg-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-600"
                 title="לא מתאים"
               >
-                &#10007;
+                <Icon name="close" size="sm" label="לא מתאים" />
               </button>
             </>
           )}

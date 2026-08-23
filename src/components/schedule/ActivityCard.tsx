@@ -12,6 +12,8 @@ import { MarkdownTextarea } from "@/components/shared/MarkdownTextarea"
 import { alternativePlanLabel, supportsAlternatives } from "@/lib/activity-alternatives"
 import { typeConfig, getMealLabel } from "@/lib/schedule-display"
 import { useOnlineStatus } from "@/hooks/useOnlineStatus"
+import { Icon } from "@/components/icons/Icon"
+import { GoogleMapsIcon, WazeIcon } from "@/components/icons/brands"
 
 export interface PlaceData {
   id: string
@@ -23,6 +25,8 @@ export interface PlaceData {
   openingHours: unknown
   lat: number | null
   lng: number | null
+  /** Google Place type, on attractions only — drives which icon the activity gets. */
+  attractionType?: string | null
 }
 
 export interface ActivityAlternativeData {
@@ -69,6 +73,64 @@ function hrefForUserWebsite(raw: string): string {
   const t = raw.trim()
   if (/^https?:\/\//i.test(t)) return t
   return `https://${t}`
+}
+
+/**
+ * Address / phone / website / maps rows for a place. Rendered for both the main
+ * activity and each backup alternative, which previously carried two verbatim
+ * copies of this markup.
+ */
+function PlaceDetailRows({ place }: { place: PlaceData }) {
+  return (
+    <>
+      {!!place.address && (
+        <div className="flex items-start gap-1.5">
+          <Icon name="location" size="sm" className="mt-0.5 text-zinc-500 dark:text-zinc-400" />
+          <span className="text-xs text-zinc-600 dark:text-zinc-300">{place.address}</span>
+        </div>
+      )}
+
+      {!!place.phone && (
+        <div className="flex items-center gap-1.5">
+          <Icon name="phone" size="sm" className="text-zinc-500 dark:text-zinc-400" />
+          <a
+            href={`tel:${place.phone}`}
+            className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+          >
+            {place.phone}
+          </a>
+        </div>
+      )}
+
+      {!!place.website && (
+        <div className="flex items-center gap-1.5">
+          <Icon name="website" size="sm" className="text-zinc-500 dark:text-zinc-400" />
+          <a
+            href={hrefForUserWebsite(place.website)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+          >
+            {getHostname(hrefForUserWebsite(place.website))}
+          </a>
+        </div>
+      )}
+
+      {!!place.googlePlaceId && (
+        <div className="flex items-center gap-1.5">
+          <GoogleMapsIcon className="h-3.5 w-3.5" />
+          <a
+            href={`https://www.google.com/maps/place/?q=place_id:${place.googlePlaceId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+          >
+            הצג בגוגל מפות
+          </a>
+        </div>
+      )}
+    </>
+  )
 }
 
 function formatDuration(timeStart: string, timeEnd: string): string {
@@ -619,26 +681,26 @@ export function ActivityCard({
                   })}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
                 >
-                  🗺️ מפה
+                  <GoogleMapsIcon className="h-3.5 w-3.5" /> מפה
                 </a>
                 {restAccommodation.website ? (
                   <a
                     href={hrefForUserWebsite(restAccommodation.website)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
                   >
-                    🌐 {getHostname(hrefForUserWebsite(restAccommodation.website))}
+                    <Icon name="website" size="sm" /> {getHostname(hrefForUserWebsite(restAccommodation.website))}
                   </a>
                 ) : null}
               </div>
             )}
 
             {activity.type === "travel" && activity.travelLeg?.driveMinutes != null && (
-              <span className="text-xs font-medium text-violet-600 dark:text-violet-400">
-                {"\u{1F697}"} {activity.travelLeg.driveMinutes} דק׳ נסיעה משוערות
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-violet-600 dark:text-violet-400">
+                <Icon name="travel" size="sm" /> {activity.travelLeg.driveMinutes} דק׳ נסיעה משוערות
               </span>
             )}
 
@@ -655,7 +717,7 @@ export function ActivityCard({
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:underline dark:text-blue-400"
                   >
-                    <span>🗺️</span> Google Maps
+                    <GoogleMapsIcon className="h-3.5 w-3.5" /> Google Maps
                   </a>
                   <a
                     href={wazeUrl}
@@ -663,7 +725,7 @@ export function ActivityCard({
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:underline dark:text-blue-400"
                   >
-                    <span>📍</span> Waze
+                    <WazeIcon className="h-3.5 w-3.5" /> Waze
                   </a>
                 </div>
               )
@@ -680,7 +742,9 @@ export function ActivityCard({
                       className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
                       title={`נסיעה מ${dt.accommodationName}`}
                     >
-                      🏨→🚗 {dt.minutes} דק׳
+                      <Icon name="lodging" size="xs" />
+                      <Icon name="travel" size="xs" />
+                      {dt.minutes} דק׳
                       {activity.drivingTimesFromLodging!.length > 1 && (
                         <span className="text-blue-400 dark:text-blue-500">
                           ({dt.accommodationName})
@@ -704,17 +768,11 @@ export function ActivityCard({
                   onClick={() => setIsDetailsOpen(!isDetailsOpen)}
                   className="flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                 >
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    className={`transition-transform ${isDetailsOpen ? "rotate-90" : "rotate-0"}`}
-                  >
-                    <path d="M9 18l6-6-6-6" />
-                  </svg>
+                  <Icon
+                    name="chevronNext"
+                    size="xs"
+                    className={`transition-transform rtl:-scale-x-100 ${isDetailsOpen ? "rotate-90" : "rotate-0"}`}
+                  />
                   {isDetailsOpen ? "הסתר פרטים" : "הצג פרטים"}
                 </button>
 
@@ -723,7 +781,7 @@ export function ActivityCard({
                     {/* Time conflict warnings */}
                     {timeConflict?.earlyArrival && (
                       <div className="flex items-center gap-1.5 rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                        <span>⚠️</span>
+                        <Icon name="warning" size="sm" />
                         <span>
                           נפתח ב-{timeConflict.earlyArrival.opensAt} — אתם מגיעים ב-{timeConflict.earlyArrival.arrivesAt}
                         </span>
@@ -731,7 +789,7 @@ export function ActivityCard({
                     )}
                     {timeConflict?.lateStay && (
                       <div className="flex items-center gap-1.5 rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                        <span>⚠️</span>
+                        <Icon name="warning" size="sm" />
                         <span>
                           נסגר ב-{timeConflict.lateStay.closesAt} — אתם יוצאים ב-{timeConflict.lateStay.leavesAt}
                         </span>
@@ -743,56 +801,7 @@ export function ActivityCard({
                       <OpeningHoursSection openingHours={place.openingHours} scheduleDate={scheduleDate} />
                     )}
 
-                    {/* Address */}
-                    {!!place.address && (
-                      <div className="flex items-start gap-1.5">
-                        <span className="text-xs">📍</span>
-                        <span className="text-xs text-zinc-600 dark:text-zinc-300">{place.address}</span>
-                      </div>
-                    )}
-
-                    {/* Phone */}
-                    {!!place.phone && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs">📞</span>
-                        <a
-                          href={`tel:${place.phone}`}
-                          className="text-xs text-blue-600 hover:underline dark:text-blue-400"
-                        >
-                          {place.phone}
-                        </a>
-                      </div>
-                    )}
-
-                    {/* Website */}
-                    {!!place.website && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs">🌐</span>
-                        <a
-                          href={place.website}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-blue-600 hover:underline dark:text-blue-400"
-                        >
-                          {getHostname(place.website)}
-                        </a>
-                      </div>
-                    )}
-
-                    {/* Google Maps link */}
-                    {!!place.googlePlaceId && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs">🗺️</span>
-                        <a
-                          href={`https://www.google.com/maps/place/?q=place_id:${place.googlePlaceId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-blue-600 hover:underline dark:text-blue-400"
-                        >
-                          הצג בגוגל מפות
-                        </a>
-                      </div>
-                    )}
+                    <PlaceDetailRows place={place} />
                   </div>
                 )}
               </div>
@@ -850,7 +859,9 @@ export function ActivityCard({
                                   className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
                                   title={`נסיעה מ${dt.accommodationName}`}
                                 >
-                                  🏨→🚗 {dt.minutes} דק׳
+                                  <Icon name="lodging" size="xs" />
+                      <Icon name="travel" size="xs" />
+                      {dt.minutes} דק׳
                                   {alt.drivingTimesFromLodging!.length > 1 && (
                                     <span className="text-blue-400 dark:text-blue-500">
                                       ({dt.accommodationName})
@@ -885,49 +896,7 @@ export function ActivityCard({
                                   {!!altPlace.openingHours && (
                                     <OpeningHoursSection openingHours={altPlace.openingHours} scheduleDate={scheduleDate} />
                                   )}
-                                  {!!altPlace.address && (
-                                    <div className="flex items-start gap-1.5">
-                                      <span className="text-xs">📍</span>
-                                      <span className="text-xs text-zinc-600 dark:text-zinc-300">{altPlace.address}</span>
-                                    </div>
-                                  )}
-                                  {!!altPlace.phone && (
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="text-xs">📞</span>
-                                      <a
-                                        href={`tel:${altPlace.phone}`}
-                                        className="text-xs text-blue-600 hover:underline dark:text-blue-400"
-                                      >
-                                        {altPlace.phone}
-                                      </a>
-                                    </div>
-                                  )}
-                                  {!!altPlace.website && (
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="text-xs">🌐</span>
-                                      <a
-                                        href={hrefForUserWebsite(altPlace.website)}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-xs text-blue-600 hover:underline dark:text-blue-400"
-                                      >
-                                        {getHostname(hrefForUserWebsite(altPlace.website))}
-                                      </a>
-                                    </div>
-                                  )}
-                                  {!!altPlace.googlePlaceId && (
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="text-xs">🗺️</span>
-                                      <a
-                                        href={`https://www.google.com/maps/place/?q=place_id:${altPlace.googlePlaceId}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-xs text-blue-600 hover:underline dark:text-blue-400"
-                                      >
-                                        הצג בגוגל מפות
-                                      </a>
-                                    </div>
-                                  )}
+                                  <PlaceDetailRows place={altPlace} />
                                 </div>
                               )}
                             </div>

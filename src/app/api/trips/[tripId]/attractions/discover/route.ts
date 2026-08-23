@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { searchPlaces, calculateRoute, geocodeAddress } from "@/lib/google-maps"
 import { normalizeAccommodations } from "@/lib/accommodations"
 import { requireTripAccess } from "@/lib/trip-access"
+import { mapAttractionType } from "@/lib/attraction-types"
 
 export async function POST(
   request: Request,
@@ -64,6 +65,7 @@ export async function POST(
       userRatingCount: place.userRatingCount ?? null,
       photos: place.photos?.map((p) => p.name) ?? [],
       types: place.types ?? [],
+      attractionType: mapAttractionType(place.types ?? []),
       websiteUri: place.websiteUri ?? null,
       openingHours: place.regularOpeningHours?.weekdayDescriptions ?? null,
       travelTimeMinutes: null as number | null,

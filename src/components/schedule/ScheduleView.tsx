@@ -6,10 +6,11 @@ import { CopyToWhatsAppButton } from "./CopyToWhatsAppButton"
 import { ItineraryMap } from "./ItineraryMap"
 
 import { WeatherForecast } from "./WeatherForecast"
-import type { DailyWeather, HourlyWeather } from "@/lib/weather"
+import { weatherIcon, type DailyWeather, type HourlyWeather } from "@/lib/weather"
 import { normalizeAccommodations, getAccommodationsForDay } from "@/lib/accommodations"
 import { normalizeCarRentals, normalizeFlights } from "@/lib/normalizers"
 import { dayTypeConfig, formatDayDate } from "@/lib/schedule-display"
+import { Icon, IconOf } from "@/components/icons/Icon"
 import { TripAgenda } from "./TripAgenda"
 
 interface Trip {
@@ -187,7 +188,7 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
   if (dayPlans.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-zinc-200 bg-white p-12 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
-        <div className="text-4xl">{"\u{1F4C5}"}</div>
+        <Icon name="calendar" size="2xl" className="text-zinc-300 dark:text-zinc-600" />
         <p className="text-zinc-500">{'\u05DC\u05D0 \u05E0\u05D5\u05E6\u05E8 \u05DC\u05D5"\u05D6 \u05E2\u05D3\u05D9\u05D9\u05DF'}</p>
         <button
           onClick={handleGenerate}
@@ -277,20 +278,21 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
                   : "border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
               }`}
             >
-              <span>{config.icon}</span>
+              <IconOf component={config.Icon} size="md" />
               <span>{formatDayDate(day.date)}</span>
               <span className="text-[10px] text-zinc-400">{config.label}</span>
               {dayWeather && (
                 <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
-                  {dayWeather.condition.icon} {dayWeather.temperatureMax}°
+                  <IconOf component={weatherIcon(dayWeather.condition.code)} size="sm" className="inline-block align-[-2px]" /> {dayWeather.temperatureMax}°
                 </span>
               )}
               {(() => {
                 const dayAccs = getAccommodationsForDay(accommodations, day.date)
                 if (dayAccs.length === 0) return null
                 return dayAccs.map(({ accommodation: a, status }, i) => (
-                  <span key={i} className="text-[10px] text-blue-500 dark:text-blue-400 truncate max-w-[100px]">
-                    🏨 {status === "check-in" ? "כניסה: " : status === "check-out" ? "יציאה: " : ""}{a.name || "לינה"}
+                  <span key={i} className="inline-flex items-center gap-1 text-[10px] text-blue-500 dark:text-blue-400 truncate max-w-[100px]">
+                    <Icon name="lodging" size="xs" />
+                    {status === "check-in" ? "כניסה: " : status === "check-out" ? "יציאה: " : ""}{a.name || "לינה"}
                   </span>
                 ))
               })()}

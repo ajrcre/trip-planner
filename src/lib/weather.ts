@@ -1,9 +1,13 @@
 // Open-Meteo weather API client (free, no API key required)
 
+import type { LucideIcon } from "lucide-react"
+
+import { weatherIcons } from "@/lib/icons"
+
 export interface WeatherCondition {
   code: number
   description: string // Hebrew
-  icon: string // emoji
+  icon: string // emoji — for plain-text contexts only
   gradient: string // Tailwind gradient classes for light mode
   gradientDark: string // Tailwind gradient classes for dark mode
 }
@@ -202,6 +206,31 @@ const WMO_CONDITIONS: Record<number, Omit<WeatherCondition, "code">> = {
     gradient: "from-slate-300 to-zinc-400",
     gradientDark: "from-slate-800/70 to-zinc-700/70",
   },
+}
+
+/**
+ * The 30 WMO codes collapse onto ten icons.
+ *
+ * Deliberately a function of the code rather than a field on `WeatherCondition`:
+ * the forecast is fetched through /api/trips/[tripId]/weather, and a React
+ * component cannot survive JSON serialisation — it would arrive as undefined.
+ * The numeric code does survive, so the UI resolves the icon on its own side.
+ */
+export function weatherIcon(code: number): LucideIcon {
+  if (code === 0) return weatherIcons.clear
+  if (code <= 2) return weatherIcons.mainlyClear
+  if (code === 3) return weatherIcons.cloudy
+  if (code <= 48) return weatherIcons.fog
+  if (code <= 55) return weatherIcons.drizzle
+  if (code <= 57) return weatherIcons.freezing // freezing drizzle
+  if (code <= 65) return weatherIcons.rain
+  if (code <= 67) return weatherIcons.freezing // freezing rain
+  if (code <= 77) return weatherIcons.snow
+  if (code <= 82) return weatherIcons.rain // rain showers
+  if (code <= 86) return weatherIcons.snow // snow showers
+  if (code === 95) return weatherIcons.thunderstorm
+  if (code <= 99) return weatherIcons.hail // thunderstorm with hail
+  return weatherIcons.cloudy
 }
 
 export function mapWeatherCode(code: number): WeatherCondition {

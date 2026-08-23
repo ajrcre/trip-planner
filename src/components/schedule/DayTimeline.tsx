@@ -5,6 +5,7 @@ import type { Accommodation } from "@/lib/accommodations"
 import type { CarRental, FlightLeg } from "@/lib/normalizers"
 import { decodeTravelEndpoint, encodeTravelEndpoint } from "@/lib/travel-endpoint-codec"
 import type { TravelEndpointRef } from "@/types/travel-leg"
+import { Icon } from "@/components/icons/Icon"
 import { ActivityCard, type ActivityData } from "./ActivityCard"
 import { supportsAlternatives, alternativePlanLabel } from "@/lib/activity-alternatives"
 import { MarkdownTextarea } from "@/components/shared/MarkdownTextarea"
@@ -590,7 +591,7 @@ export function DayTimeline({
         </div>
       ) : dayPlan.notes ? (
         <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-900/20">
-          <span className="text-sm text-amber-600 dark:text-amber-400">📌</span>
+          <Icon name="note" size="md" className="mt-0.5 text-amber-600 dark:text-amber-400" />
           <TextWithLinks text={dayPlan.notes} className="flex-1 text-sm text-amber-800 dark:text-amber-300" />
           <button
             onClick={beginEditingDayNote}

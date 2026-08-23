@@ -4,6 +4,7 @@ import { useState } from "react"
 import { usePathname } from "next/navigation"
 import ChatDrawer from "./ChatDrawer"
 import { useOnlineStatus } from "@/hooks/useOnlineStatus"
+import { Icon } from "@/components/icons/Icon"
 
 export default function GlobalAiButton() {
   const [isOpen, setIsOpen] = useState(false)
@@ -31,7 +32,7 @@ export default function GlobalAiButton() {
           className="fixed bottom-6 left-6 z-40 flex items-center gap-2 rounded-full bg-blue-600 px-4 py-3 text-sm font-medium text-white shadow-lg transition-all hover:bg-blue-700 hover:shadow-xl active:scale-95"
           title="עוזר AI לתכנון"
         >
-          <span className="text-lg" aria-hidden="true">💡</span>
+          <Icon name="ai" size="lg" />
           <span className="hidden sm:inline">עוזר AI</span>
         </button>
       )}

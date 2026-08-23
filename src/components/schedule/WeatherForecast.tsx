@@ -1,6 +1,7 @@
 "use client"
 
-import type { DailyWeather, HourlyWeather } from "@/lib/weather"
+import { weatherIcon, type DailyWeather, type HourlyWeather } from "@/lib/weather"
+import { Icon, IconOf } from "@/components/icons/Icon"
 
 interface WeatherForecastProps {
   dailyWeather: DailyWeather | null
@@ -206,7 +207,7 @@ export function WeatherForecast({
   if (!dailyWeather) {
     return (
       <div className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800/50">
-        <span className="text-lg opacity-40">{"\u{1F324}\uFE0F"}</span>
+        <Icon name="weatherPending" size="lg" className="text-zinc-400 opacity-60" />
         <span className="text-xs text-zinc-400">
           {"תחזית מזג אוויר תהיה זמינה קרוב יותר למועד"}
         </span>
@@ -222,7 +223,11 @@ export function WeatherForecast({
     >
       {/* Daily summary */}
       <div className="flex items-center gap-4 px-4 py-3">
-        <span className="text-3xl">{condition.icon}</span>
+        <IconOf
+          component={weatherIcon(condition.code)}
+          size="2xl"
+          className="text-zinc-700 dark:text-zinc-200"
+        />
 
         <div className="flex flex-col gap-0.5">
           <div className="flex items-baseline gap-2">

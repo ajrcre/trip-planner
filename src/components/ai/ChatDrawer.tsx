@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import type { ChatMessage as ChatMessageType } from "@/types/ai-chat"
 import type { ChatResponse, ExecuteActionResponse } from "@/types/ai-chat"
 import ChatMessage from "./ChatMessage"
+import { Icon } from "@/components/icons/Icon"
 
 interface ChatDrawerProps {
   tripId: string
@@ -217,7 +218,7 @@ export default function ChatDrawer({
       >
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-700">
-          <span className="text-lg">💡</span>
+          <Icon name="ai" size="lg" className="text-blue-600 dark:text-blue-400" />
           <h2 className="flex-1 text-sm font-semibold text-zinc-800 dark:text-zinc-100">
             עוזר AI לתכנון הטיול
           </h2>
@@ -228,7 +229,7 @@ export default function ChatDrawer({
               className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
               title="נקה שיחה"
             >
-              🗑️
+              <Icon name="trash" size="lg" label="נקה שיחה" />
             </button>
           )}
 
@@ -237,20 +238,7 @@ export default function ChatDrawer({
             className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
             title="סגור"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+            <Icon name="close" size="lg" label="סגור" />
           </button>
         </div>
 
@@ -259,7 +247,7 @@ export default function ChatDrawer({
           {messages.length === 0 ? (
             /* Empty state */
             <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
-              <span className="text-5xl">🤖</span>
+              <Icon name="ai" size="2xl" className="text-blue-500/70 dark:text-blue-400/70" />
               <div className="space-y-2">
                 <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
                   אני העוזר שלך לתכנון הטיול

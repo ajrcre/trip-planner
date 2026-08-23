@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import type { TripRole, TripMember, PendingInvite, TripMembersResponse } from "@/types/sharing"
 import { useOnlineStatus } from "@/hooks/useOnlineStatus"
+import { Icon } from "@/components/icons/Icon"
 
 function Avatar({ name, image }: { name: string | null; image: string | null }) {
   const [broken, setBroken] = useState(false)
@@ -245,7 +246,7 @@ export function ShareExportButtons({
                       className="rounded p-0.5 text-zinc-400 transition-colors hover:text-red-500"
                       title="הסר"
                     >
-                      ✕
+                      <Icon name="close" size="sm" label="הסר" />
                     </button>
                   </>
                 ) : (
@@ -271,7 +272,7 @@ export function ShareExportButtons({
                       className="rounded p-0.5 text-zinc-400 transition-colors hover:text-red-500"
                       title="בטל הזמנה"
                     >
-                      ✕
+                      <Icon name="close" size="sm" label="בטל הזמנה" />
                     </button>
                   )}
                 </div>

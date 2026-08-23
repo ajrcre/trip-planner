@@ -11,6 +11,7 @@ import {
 import type { ActivityData } from "./ActivityCard"
 import { useOnlineStatus } from "@/hooks/useOnlineStatus"
 import { OfflinePlaceholder } from "@/components/offline/OfflinePlaceholder"
+import { Icon } from "@/components/icons/Icon"
 
 interface ItineraryMapProps {
   activities: ActivityData[]
@@ -496,7 +497,7 @@ export function ItineraryMap({
         onClick={() => setIsCollapsed(false)}
         className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-zinc-700"
       >
-        <span>🗺️</span>
+        <Icon name="map" size="md" className="text-zinc-500 dark:text-zinc-400" />
         <span>הצג מפה</span>
       </button>
     )

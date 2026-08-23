@@ -2,6 +2,7 @@
 
 import { useRef } from "react"
 import { wrapSelection, insertLink, applyListPrefix, type EditResult } from "@/lib/markdown-toolbar"
+import { Icon } from "@/components/icons/Icon"
 
 interface MarkdownTextareaProps {
   value: string
@@ -45,7 +46,7 @@ export function MarkdownTextarea({ value, onChange, rows = 3, placeholder, class
         </button>
         <span className="mx-1 h-4 w-px bg-zinc-300 dark:bg-zinc-600" />
         <button type="button" title="קישור" className={buttonClass} onClick={() => applyEdit((v, s, e) => insertLink(v, s, e))}>
-          🔗
+          <Icon name="link" size="md" />
         </button>
         <span className="mx-1 h-4 w-px bg-zinc-300 dark:bg-zinc-600" />
         <button type="button" title="רשימה ממוספרת" className={buttonClass} onClick={() => applyEdit((v, s, e) => applyListPrefix(v, s, e, true))}>
