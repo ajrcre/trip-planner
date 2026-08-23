@@ -7,7 +7,7 @@ function ensureOptions(): void {
   setOptions({
     key: process.env.NEXT_PUBLIC_GOOGLE_MAPS_CLIENT_KEY!,
     v: "weekly",
-    libraries: ["places", "marker"],
+    libraries: ["marker"],
   })
   optionsSet = true
 }
