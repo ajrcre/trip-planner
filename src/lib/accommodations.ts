@@ -23,6 +23,31 @@ export interface AccommodationForDay {
   status: AccommodationStatus;
 }
 
+/** A date string is usable only if it starts with a real YYYY-MM-DD. */
+function isParseableDate(dateStr: string | undefined): boolean {
+  if (!dateStr) return false
+  if (!/^\d{4}-\d{2}-\d{2}/.test(dateStr)) return false
+  return !Number.isNaN(new Date(dateStr.slice(0, 10)).getTime())
+}
+
+/**
+ * True when an accommodation carries a date that cannot be parsed.
+ *
+ * Day matching is a string-prefix comparison, so a malformed date — an
+ * extraction that wrote the literal "YYYY" placeholder, say — matches no day
+ * at all and silently removes the accommodation from every travel-time
+ * calculation. Callers surface this so it cannot skew estimates unnoticed.
+ *
+ * Having no dates at all is a normal state and is not reported here.
+ */
+export function hasUnparseableDates(accommodation: Accommodation): boolean {
+  const { checkIn, checkOut } = accommodation
+  if (!checkIn && !checkOut) return false
+  if (checkIn && !isParseableDate(checkIn)) return true
+  if (checkOut && !isParseableDate(checkOut)) return true
+  return false
+}
+
 /**
  * Extract the date part (YYYY-MM-DD) from a date/datetime string.
  */
@@ -51,12 +76,16 @@ export function getAccommodationsForDay(
       continue;
     }
 
-    const checkIn = accommodation.checkIn
-      ? toDateOnly(accommodation.checkIn)
+    const checkIn = isParseableDate(accommodation.checkIn)
+      ? toDateOnly(accommodation.checkIn!)
       : null;
-    const checkOut = accommodation.checkOut
-      ? toDateOnly(accommodation.checkOut)
+    const checkOut = isParseableDate(accommodation.checkOut)
+      ? toDateOnly(accommodation.checkOut!)
       : null;
+
+    if (!checkIn && !checkOut) {
+      continue;
+    }
 
     if (checkIn && day === checkIn) {
       results.push({ accommodation, status: "check-in" });

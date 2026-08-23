@@ -91,6 +91,8 @@ export function clearRouteCache() {
 interface AccommodationForDriving {
   name?: string
   coordinates?: { lat: number; lng: number }
+  /** Role on this specific day, when the caller knows it. */
+  status?: "check-in" | "check-out" | "staying"
 }
 
 interface ActivityForDriving {
@@ -102,6 +104,11 @@ interface ActivityForDriving {
 export interface DrivingTimeFromLodging {
   accommodationName: string
   minutes: number
+  /**
+   * Role of this lodging on the day. Lets the UI say which one a travel time
+   * is measured from when a day moves between two.
+   */
+  status?: "check-in" | "check-out" | "staying"
 }
 
 /**
@@ -144,6 +151,7 @@ export async function computeDrivingTimesForDay(
       results.push({
         accommodationName: acc.name || "לינה",
         minutes,
+        status: acc.status,
       })
     } catch {
       // Skip this accommodation if route calculation fails

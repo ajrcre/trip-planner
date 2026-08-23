@@ -183,8 +183,10 @@ export async function GET(
   const enrichedDayPlans = await Promise.all(
     dayPlans.map(async (dayPlan) => {
       const dayDate = dayPlan.date.toISOString().split("T")[0]
+      // Keep the per-day status: it is what lets a chip say whether it is
+      // measured from the lodging being left or the one being arrived at.
       const dayAccommodations = getAccommodationsForDay(accommodations, dayDate)
-        .map((a) => a.accommodation)
+        .map((a) => ({ ...a.accommodation, status: a.status }))
 
       const enrichedActivities = await Promise.all(
         dayPlan.activities.map(async (activity) => {

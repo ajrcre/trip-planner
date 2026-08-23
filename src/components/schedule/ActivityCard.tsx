@@ -13,6 +13,7 @@ import { alternativePlanLabel, supportsAlternatives } from "@/lib/activity-alter
 import { typeConfig, getMealLabel } from "@/lib/schedule-display"
 import { useOnlineStatus } from "@/hooks/useOnlineStatus"
 import { formatMinutes, formatTimeRange } from "@/lib/format-duration"
+import type { DrivingTimeFromLodging } from "@/lib/driving-times"
 
 export interface PlaceData {
   id: string
@@ -36,7 +37,7 @@ export interface ActivityAlternativeData {
   attraction: PlaceData | null
   restaurant: PlaceData | null
   groceryStore: PlaceData | null
-  drivingTimesFromLodging?: { accommodationName: string; minutes: number }[]
+  drivingTimesFromLodging?: DrivingTimeFromLodging[]
 }
 
 export interface ActivityData {
@@ -53,7 +54,7 @@ export interface ActivityData {
   attraction: PlaceData | null
   restaurant: PlaceData | null
   groceryStore: PlaceData | null
-  drivingTimesFromLodging?: { accommodationName: string; minutes: number }[]
+  drivingTimesFromLodging?: DrivingTimeFromLodging[]
   travelLeg?: TravelLegStored | null
   alternatives?: ActivityAlternativeData[]
 }
@@ -72,6 +73,17 @@ function hrefForUserWebsite(raw: string): string {
   return `https://${t}`
 }
 
+
+/**
+ * Label for a lodging travel-time chip: always the accommodation, plus its
+ * role on days that move between two, so it is unambiguous which lodging the
+ * time is measured from.
+ */
+function lodgingLabel(dt: DrivingTimeFromLodging): string {
+  const role =
+    dt.status === "check-in" ? "כניסה" : dt.status === "check-out" ? "יציאה" : null
+  return role ? `${dt.accommodationName} · ${role}` : dt.accommodationName
+}
 
 interface ActivityCardProps {
   activity: ActivityData
@@ -661,11 +673,9 @@ export function ActivityCard({
                       title={`נסיעה מ${dt.accommodationName}`}
                     >
                       🏨→🚗 {formatMinutes(dt.minutes)}
-                      {activity.drivingTimesFromLodging!.length > 1 && (
-                        <span className="text-blue-400 dark:text-blue-500">
-                          ({dt.accommodationName})
-                        </span>
-                      )}
+                      <span className="max-w-[11rem] truncate text-blue-400 dark:text-blue-500">
+                        {lodgingLabel(dt)}
+                      </span>
                     </span>
                   ))}
                 </div>
@@ -831,11 +841,9 @@ export function ActivityCard({
                                   title={`נסיעה מ${dt.accommodationName}`}
                                 >
                                   🏨→🚗 {formatMinutes(dt.minutes)}
-                                  {alt.drivingTimesFromLodging!.length > 1 && (
-                                    <span className="text-blue-400 dark:text-blue-500">
-                                      ({dt.accommodationName})
-                                    </span>
-                                  )}
+                                  <span className="max-w-[11rem] truncate text-blue-400 dark:text-blue-500">
+                                    {lodgingLabel(dt)}
+                                  </span>
                                 </span>
                               ))}
                             </div>
