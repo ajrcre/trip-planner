@@ -16,7 +16,7 @@
  * covers the same ground without coupling to the build.
  */
 
-const CACHE_VERSION = "v1"
+const CACHE_VERSION = "v2"
 const SHELL_CACHE = `trip-planner-shell-${CACHE_VERSION}`
 const STATIC_CACHE = `trip-planner-static-${CACHE_VERSION}`
 const API_CACHE = `trip-planner-api-${CACHE_VERSION}`
@@ -125,21 +125,66 @@ async function networkFirst(request, cacheName, cacheKey = request) {
   }
 }
 
-async function handleNavigation(request) {
+/**
+ * Answer from cache immediately and refresh in the background.
+ *
+ * Network-first was the wrong trade for how this app is actually used. On hotel
+ * wifi or a roaming signal the network does not fail cleanly — it hangs — so
+ * every screen paid the full timeout before falling back to a cached copy it had
+ * all along. Serving the cached copy first makes an opened trip instant, and the
+ * cost is that a change someone else made lands one interaction late.
+ *
+ * Returns the background fetch as `revalidation` so the caller can keep the
+ * worker alive for it via `event.waitUntil`.
+ */
+function staleWhileRevalidate(request, cacheName, cacheKey = request) {
+  // putInCache clones internally, so the response handed back is still unread.
+  const network = fetch(request)
+    .then(async (response) => {
+      await putInCache(cacheName, cacheKey, response)
+      return response
+    })
+    .catch(() => null)
+
+  const response = caches.match(cacheKey, { cacheName }).then(async (cached) => {
+    if (cached) {
+      notifyRevalidating(cacheKey)
+      return cached
+    }
+    return await network
+  })
+
+  return { response, revalidation: network }
+}
+
+/**
+ * Tells the app a screen is showing cached data while it refreshes, so it can
+ * say so rather than looking silently out of date.
+ */
+async function notifyRevalidating(cacheKey) {
+  const url = typeof cacheKey === "string" ? cacheKey : cacheKey.url
+  const clients = await self.clients.matchAll({ type: "window" })
+  for (const client of clients) {
+    client.postMessage({ type: "REVALIDATING", url })
+  }
+}
+
+function handleNavigation(request) {
   const url = new URL(request.url)
-  try {
-    const response = await fetch(request)
-    await putInCache(SHELL_CACHE, url.pathname, response)
-    return response
-  } catch {
-    const cached = await caches.match(url.pathname, { cacheName: SHELL_CACHE })
-    if (cached) return cached
-    // A route we never warmed. The trip list is the useful offline entry point,
-    // and every page is client-rendered so the shell is interchangeable enough
-    // to get the user somewhere they can navigate from.
-    const fallback = await caches.match(FALLBACK_SHELL, { cacheName: SHELL_CACHE })
-    if (fallback) return fallback
-    return new Response("Offline", { status: 503, headers: { "Content-Type": "text/plain" } })
+  const { response, revalidation } = staleWhileRevalidate(request, SHELL_CACHE, url.pathname)
+
+  return {
+    response: response.then(async (res) => {
+      // `res` is null only when nothing was cached and the network failed: a
+      // route we never warmed, opened offline. The trip list is the useful
+      // entry point, and every page shell is interchangeable enough to get the
+      // user somewhere they can navigate from.
+      if (res) return res
+      const fallback = await caches.match(FALLBACK_SHELL, { cacheName: SHELL_CACHE })
+      if (fallback) return fallback
+      return new Response("Offline", { status: 503, headers: { "Content-Type": "text/plain" } })
+    }),
+    revalidation,
   }
 }
 
@@ -258,12 +303,18 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (request.mode === "navigate") {
-    event.respondWith(handleNavigation(request))
+    const { response, revalidation } = handleNavigation(request)
+    event.respondWith(response)
+    // The page has already been answered from cache by then, so the refresh
+    // needs the worker kept alive on its own account.
+    event.waitUntil(revalidation)
     return
   }
 
   if (isCacheableApi(url)) {
-    event.respondWith(networkFirst(request, API_CACHE))
+    const { response, revalidation } = staleWhileRevalidate(request, API_CACHE)
+    event.respondWith(response.then((res) => res ?? offlineResponse()))
+    event.waitUntil(revalidation)
   }
 })
 

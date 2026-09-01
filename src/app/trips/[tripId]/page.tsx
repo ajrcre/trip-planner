@@ -1,50 +1,31 @@
-"use client"
-
-import { useSession } from "next-auth/react"
-import { useEffect, useState } from "react"
-import { useRouter, useParams } from "next/navigation"
+import { Suspense } from "react"
 import Link from "next/link"
-import { TripDashboard } from "@/components/trips/TripDashboard"
+import { redirect } from "next/navigation"
 
-export default function TripPage() {
-  const { data: session, status } = useSession()
-  const router = useRouter()
-  const params = useParams()
-  const tripId = params.tripId as string
+import { getAuthSession } from "@/lib/auth"
+import { getTripPayload } from "@/lib/trip-payload"
+import { TripDashboard, type Trip } from "@/components/trips/TripDashboard"
+import { TripDashboardSkeleton } from "@/components/trips/TripDashboardSkeleton"
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [trip, setTrip] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
+/**
+ * Rendered on the server so the trip arrives in the HTML.
+ *
+ * The client version of this page waited on two serial round trips before it
+ * could paint anything — the session, then the trip — which on a hotel
+ * connection meant several seconds of spinner every time the app was opened.
+ */
+export default async function TripPage({
+  params,
+}: {
+  params: Promise<{ tripId: string }>
+}) {
+  const session = await getAuthSession()
+  if (!session?.user?.id) redirect("/")
 
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/")
-      return
-    }
-    if (status === "authenticated" && tripId) {
-      fetch(`/api/trips/${tripId}`)
-        .then((res) => {
-          if (!res.ok) throw new Error("Not found")
-          return res.json()
-        })
-        .then((data) => setTrip(data))
-        .catch(() => setError(true))
-        .finally(() => setLoading(false))
-    }
-  }, [status, router, tripId])
+  const { tripId } = await params
+  const trip = await getTripPayload(tripId, session.user.id)
 
-  if (status === "loading" || loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
-      </div>
-    )
-  }
-
-  if (!session?.user) return null
-
-  if (error || !trip) {
+  if (!trip) {
     return (
       <div className="mx-auto w-full max-w-3xl px-4 py-8 text-center">
         <p className="mb-4 text-lg text-zinc-500">הטיול לא נמצא</p>
@@ -68,7 +49,23 @@ export default function TripPage() {
           חזרה לטיולים
         </Link>
       </div>
-      <TripDashboard trip={trip} role={trip.role ?? "owner"} />
+      {/* The dashboard reads the active tab from the query string, and
+          `useSearchParams` needs a Suspense boundary to hydrate under a
+          server-rendered page — without one the whole subtree stays inert.
+          Keyed by trip so navigating between two trips remounts it rather than
+          showing the previous trip's data from local state. */}
+      {/* The dashboard reads the active tab from the query string, and
+          `useSearchParams` needs a Suspense boundary to hydrate under a
+          server-rendered page. Keyed by trip so navigating between two trips
+          remounts it rather than showing the previous trip's data from local
+          state. */}
+      <Suspense fallback={<TripDashboardSkeleton />}>
+        <TripDashboard
+          key={trip.id}
+          trip={JSON.parse(JSON.stringify(trip)) as Trip}
+          role={trip.role}
+        />
+      </Suspense>
     </div>
   )
 }

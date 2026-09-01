@@ -1,18 +1,51 @@
 "use client"
 
 import { useState, useCallback } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
+import dynamic from "next/dynamic"
 import { OverviewTab } from "./tabs/OverviewTab"
-import { AttractionsTab } from "./tabs/AttractionsTab"
-import { RestaurantsTab } from "./tabs/RestaurantsTab"
-import { GroceryStoresTab } from "./tabs/GroceryStoresTab"
-import { ScheduleTab } from "./tabs/ScheduleTab"
-import { ListsTab } from "./tabs/ListsTab"
-import { ShareExportButtons } from "./ShareExportButtons"
-import { DestinationOverview } from "@/components/trips/DestinationOverview"
-import { FamilyProfileTab } from "./tabs/FamilyProfileTab"
 import type { TripRole } from "@/types/sharing"
+
+// Only the default tab ships in the trip page's first load. The rest — the two
+// map libraries, the markdown renderer, the 27 KB family profile form — are
+// fetched when their tab is actually opened, which on a weak connection is the
+// difference between a usable page and a blank one.
+const tabSpinner = () => (
+  <div className="flex h-64 items-center justify-center">
+    <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+  </div>
+)
+
+const AttractionsTab = dynamic(
+  () => import("./tabs/AttractionsTab").then((m) => m.AttractionsTab),
+  { loading: tabSpinner }
+)
+const RestaurantsTab = dynamic(
+  () => import("./tabs/RestaurantsTab").then((m) => m.RestaurantsTab),
+  { loading: tabSpinner }
+)
+const GroceryStoresTab = dynamic(
+  () => import("./tabs/GroceryStoresTab").then((m) => m.GroceryStoresTab),
+  { loading: tabSpinner }
+)
+const ScheduleTab = dynamic(() => import("./tabs/ScheduleTab").then((m) => m.ScheduleTab), {
+  loading: tabSpinner,
+})
+const ListsTab = dynamic(() => import("./tabs/ListsTab").then((m) => m.ListsTab), {
+  loading: tabSpinner,
+})
+const DestinationOverview = dynamic(
+  () => import("@/components/trips/DestinationOverview").then((m) => m.DestinationOverview),
+  { loading: tabSpinner }
+)
+const FamilyProfileTab = dynamic(
+  () => import("./tabs/FamilyProfileTab").then((m) => m.FamilyProfileTab),
+  { loading: tabSpinner }
+)
+const ShareExportButtons = dynamic(() =>
+  import("./ShareExportButtons").then((m) => m.ShareExportButtons)
+)
 
 export interface Trip {
   id: string
@@ -58,11 +91,32 @@ function formatDate(date: string) {
   return new Date(date).toLocaleDateString("he-IL")
 }
 
+function parseTab(value: string | null): TabKey {
+  return tabs.some((t) => t.key === value) ? (value as TabKey) : "overview"
+}
+
 export function TripDashboard({ trip: initialTrip, role: roleProp }: { trip: Trip; role?: TripRole }) {
-  const [activeTab, setActiveTab] = useState<TabKey>("overview")
   const [trip, setTrip] = useState<Trip>(initialTrip)
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const { data: session } = useSession()
+
+  // The tab lives in the URL so a refresh — the thing you do constantly to see
+  // someone else's edits to a shared list — puts you back on the same tab
+  // instead of the overview.
+  const activeTab = parseTab(searchParams.get("tab"))
+
+  const selectTab = useCallback(
+    (key: TabKey) => {
+      const next = new URLSearchParams(searchParams.toString())
+      next.set("tab", key)
+      // Switching tab is not a place in history worth a back-button stop, and
+      // pushing one per tap would trap the user inside the trip.
+      router.replace(`${pathname}?${next.toString()}`, { scroll: false })
+    },
+    [router, pathname, searchParams]
+  )
 
   const role: TripRole = roleProp ?? initialTrip.role ?? "owner"
 
@@ -122,7 +176,7 @@ export function TripDashboard({ trip: initialTrip, role: roleProp }: { trip: Tri
         {tabs.map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => selectTab(tab.key)}
             className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === tab.key
                 ? "bg-white text-blue-600 shadow-sm dark:bg-zinc-700 dark:text-blue-400"

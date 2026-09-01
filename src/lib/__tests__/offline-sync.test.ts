@@ -72,6 +72,7 @@ describe("buildWarmUrls", () => {
     expect(buildWarmUrls([])).toEqual([
       "/api/auth/session",
       "/api/trips",
+      "/open",
       "/trips",
       "/trips/new",
       "/family",

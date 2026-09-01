@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useCallback, useEffect, useMemo } from "react"
+import { useState, useCallback, useEffect, useMemo, useRef } from "react"
+import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { DayTimeline, type DayPlanData } from "./DayTimeline"
 import { CopyToWhatsAppButton } from "./CopyToWhatsAppButton"
 import { ItineraryMap } from "./ItineraryMap"
@@ -10,6 +11,7 @@ import { weatherIcon, type DailyWeather, type HourlyWeather } from "@/lib/weathe
 import { normalizeAccommodations, getAccommodationsForDay } from "@/lib/accommodations"
 import { normalizeCarRentals, normalizeFlights } from "@/lib/normalizers"
 import { dayTypeConfig, formatDayDate } from "@/lib/schedule-display"
+import { localTodayISO, tripDayISO, pickInitialDay } from "@/lib/active-trip"
 import { Icon, IconOf } from "@/components/icons/Icon"
 import { TripAgenda } from "./TripAgenda"
 
@@ -56,6 +58,26 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
   const [activeActivityId, setActiveActivityId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<"day" | "agenda">("day")
 
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const todayISO = localTodayISO()
+
+  // Only the day pinned when the view mounted decides the initial selection.
+  // Held in a ref so that writing `?day=` on every tap does not invalidate
+  // `fetchSchedule` and refetch the whole schedule.
+  const pinnedDayRef = useRef(searchParams.get("day"))
+
+  /** Selects a day and pins it in the URL so a refresh keeps it. */
+  const selectDay = useCallback(
+    (dayId: string, date: string) => {
+      setActiveDay(dayId)
+      const next = new URLSearchParams(searchParams.toString())
+      next.set("day", tripDayISO(date))
+      router.replace(`${pathname}?${next.toString()}`, { scroll: false })
+    },
+    [router, pathname, searchParams]
+  )
 
   const handleMarkerClick = useCallback((activityId: string) => {
     setActiveActivityId(activityId)
@@ -134,10 +156,7 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
       if (res.ok) {
         const data = await res.json()
         setDayPlans(data)
-        setActiveDay((prev) => {
-          if (prev) return prev
-          return data.length > 0 ? data[0].id : null
-        })
+        setActiveDay((prev) => prev ?? pickInitialDay(data, pinnedDayRef.current))
       }
     } catch (error) {
       console.error("Failed to fetch schedule:", error)
@@ -166,9 +185,7 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
       if (res.ok) {
         const data = await res.json()
         setDayPlans(data)
-        if (data.length > 0) {
-          setActiveDay(data[0].id)
-        }
+        setActiveDay(pickInitialDay(data, pinnedDayRef.current))
       }
     } catch (error) {
       console.error("Failed to generate schedule:", error)
@@ -255,7 +272,8 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
           weatherByDate={weatherByDate}
           accommodations={accommodations}
           onSelectDay={(dayId) => {
-            setActiveDay(dayId)
+            const day = dayPlans.find((d) => d.id === dayId)
+            if (day) selectDay(dayId, day.date)
             setViewMode("day")
           }}
         />
@@ -266,12 +284,14 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
         {dayPlans.map((day) => {
           const config = dayTypeConfig[day.dayType] ?? dayTypeConfig.full_day
           const isActive = day.id === activeDay
+          const isToday = tripDayISO(day.date) === todayISO
           const dayWeather = weatherByDate.get(normalizeDate(day.date))
 
           return (
             <button
               key={day.id}
-              onClick={() => setActiveDay(day.id)}
+              onClick={() => selectDay(day.id, day.date)}
+              aria-current={isToday ? "date" : undefined}
               className={`flex min-w-[110px] flex-col items-center gap-0.5 whitespace-nowrap rounded-lg border-b-2 px-3 py-2 text-xs font-medium transition-colors ${
                 isActive
                   ? `bg-white shadow-sm dark:bg-zinc-700 ${config.accent}`
@@ -280,6 +300,13 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
             >
               <IconOf component={config.Icon} size="md" />
               <span>{formatDayDate(day.date)}</span>
+              {/* Marked whether or not it is the selected day, so scrolling
+                  through the trip never loses track of where "now" is. */}
+              {isToday && (
+                <span className="rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                  היום
+                </span>
+              )}
               <span className="text-[10px] text-zinc-400">{config.label}</span>
               {dayWeather && (
                 <span className="text-[10px] text-zinc-500 dark:text-zinc-400">

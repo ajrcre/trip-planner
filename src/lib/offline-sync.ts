@@ -80,6 +80,9 @@ export function buildWarmUrls(tripIds: string[]): string[] {
   const urls = [
     "/api/auth/session",
     "/api/trips",
+    // The manifest's start_url: without its shell an offline relaunch from the
+    // home screen has nowhere to land.
+    "/open",
     "/trips",
     "/trips/new",
     "/family",

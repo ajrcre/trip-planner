@@ -27,6 +27,12 @@ interface SavedAttraction {
   nearbyRestaurantId: string | null
 }
 
+function toRestaurantOptions(restaurants: unknown[]): { id: string; name: string }[] {
+  return (restaurants as { id: string; name: string; status: string }[])
+    .filter((r) => r.status !== "rejected")
+    .map((r) => ({ id: r.id, name: r.name }))
+}
+
 export function AttractionsTab({ trip, role }: { trip: Trip; role: TripRole }) {
   const canEdit = role !== "viewer"
   const [subView, setSubView] = useState<"discover" | "my">(
@@ -35,7 +41,11 @@ export function AttractionsTab({ trip, role }: { trip: Trip; role: TripRole }) {
   const [savedAttractions, setSavedAttractions] = useState<SavedAttraction[]>(
     trip.attractions as unknown as SavedAttraction[]
   )
-  const [restaurantOptions, setRestaurantOptions] = useState<{ id: string; name: string }[]>([])
+  // Seeded from the server-rendered trip so the "nearby restaurant" picker is
+  // populated on first paint; the fetch below only revalidates it.
+  const [restaurantOptions, setRestaurantOptions] = useState<{ id: string; name: string }[]>(
+    () => toRestaurantOptions(trip.restaurants)
+  )
 
   const fetchAttractions = useCallback(async () => {
     try {
@@ -53,12 +63,7 @@ export function AttractionsTab({ trip, role }: { trip: Trip; role: TripRole }) {
     try {
       const response = await fetch(`/api/trips/${trip.id}/restaurants`)
       if (response.ok) {
-        const data = await response.json()
-        setRestaurantOptions(
-          data
-            .filter((r: { status: string }) => r.status !== "rejected")
-            .map((r: { id: string; name: string }) => ({ id: r.id, name: r.name }))
-        )
+        setRestaurantOptions(toRestaurantOptions(await response.json()))
       }
     } catch (error) {
       console.error("Failed to fetch restaurant options:", error)

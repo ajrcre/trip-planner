@@ -9,8 +9,22 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
     ],
   },
+  experimental: {
+    // src/lib/icons.ts re-exports a large icon set and is imported app-wide.
+    optimizePackageImports: ["lucide-react"],
+  },
   async headers() {
     return [
+      {
+        // The icons are stable and the PWA re-requests them on every launch, so
+        // they should never cost a revalidation round trip on a weak
+        // connection. (Next already sets this itself for /_next/static, and
+        // overriding it there breaks dev.)
+        source: "/icons/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
       {
         source: "/(.*)",
         headers: [

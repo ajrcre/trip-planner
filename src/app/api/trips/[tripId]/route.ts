@@ -5,8 +5,8 @@ import { prisma } from "@/lib/prisma"
 import { geocodeAddress } from "@/lib/google-maps"
 import { normalizeAccommodations } from "@/lib/accommodations"
 import { syncLogisticsActivities } from "@/lib/sync-logistics"
-import { normalizeFlights, normalizeCarRentals } from "@/lib/normalizers"
 import { requireTripAccess } from "@/lib/trip-access"
+import { getTripPayload, backfillAccommodationCoords } from "@/lib/trip-payload"
 
 export async function GET(
   _request: Request,
@@ -19,56 +19,17 @@ export async function GET(
 
   const { tripId } = await params
 
-  const result = await requireTripAccess(tripId)
-  if (result instanceof NextResponse) return result
-  const { role } = result
-
-  const fullTrip = await prisma.trip.findUnique({
-    where: { id: tripId },
-    include: {
-      attractions: true,
-      restaurants: true,
-      groceryStores: true,
-      dayPlans: {
-        include: { activities: true },
-      },
-      packingItems: true,
-      shoppingItems: true,
-    },
-  })
-
-  // Lazy-geocode accommodations that have an address but no coordinates
-  const accommodations = normalizeAccommodations(fullTrip!.accommodation)
-  const needsGeocoding = accommodations.some((a) => a.address && !a.coordinates)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let enrichedAccommodation: any = fullTrip!.accommodation
-  if (needsGeocoding) {
-    const geocoded = await Promise.all(
-      accommodations.map(async (acc) => {
-        if (acc.address && !acc.coordinates) {
-          const coords = await geocodeAddress(acc.address)
-          if (coords) return { ...acc, coordinates: coords }
-        }
-        return acc
-      })
-    )
-    enrichedAccommodation = geocoded
-    // Persist in background so future loads are instant
-    prisma.trip.update({
-      where: { id: tripId },
-      data: { accommodation: JSON.parse(JSON.stringify(geocoded)) },
-    }).catch(() => {})
+  const payload = await getTripPayload(tripId, session.user.id)
+  if (!payload) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
 
-  const normalized = {
-    ...fullTrip,
-    accommodation: enrichedAccommodation,
-    flights: normalizeFlights(fullTrip!.flights),
-    carRental: normalizeCarRentals(fullTrip!.carRental),
-    role,
-  }
+  // Lazy-geocode accommodations entered as an address. This is the path that
+  // does the filling-in — the server-rendered page skips it so first paint never
+  // waits on Google.
+  const accommodation = await backfillAccommodationCoords(tripId, payload.accommodation)
 
-  return NextResponse.json(normalized)
+  return NextResponse.json({ ...payload, accommodation })
 }
 
 export async function PUT(

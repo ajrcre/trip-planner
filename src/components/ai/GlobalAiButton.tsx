@@ -2,9 +2,14 @@
 
 import { useState } from "react"
 import { usePathname } from "next/navigation"
-import ChatDrawer from "./ChatDrawer"
+import dynamic from "next/dynamic"
 import { useOnlineStatus } from "@/hooks/useOnlineStatus"
 import { Icon } from "@/components/icons/Icon"
+
+// This button lives in the root layout, so a static import put the whole chat —
+// drawer, message list, action-proposal cards — into every page's first load,
+// including the ones where the button renders nothing.
+const ChatDrawer = dynamic(() => import("./ChatDrawer"), { ssr: false })
 
 export default function GlobalAiButton() {
   const [isOpen, setIsOpen] = useState(false)

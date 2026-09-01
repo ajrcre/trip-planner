@@ -14,9 +14,10 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "מתכנן טיולים משפחתי — זמין גם ללא חיבור לאינטרנט",
     lang: "he",
     dir: "rtl",
-    // The trip list, not "/": offline that landing page is the least useful
-    // screen, and it is the one page rendered on the server.
-    start_url: "/trips",
+    // The dispatcher, not "/" or "/trips": it resumes wherever the user was
+    // before iOS evicted the app, and failing that opens the trip they are
+    // currently on. See src/app/open/page.tsx.
+    start_url: "/open",
     display: "standalone",
     orientation: "portrait",
     background_color: "#ffffff",
