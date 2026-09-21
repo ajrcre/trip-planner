@@ -46,6 +46,8 @@
     "typescript": "^5"
   },
   "overrides": {
-    "test-exclude": "^8.0.0"
+    "test-exclude": "^8.0.0",
+    "mysql2": "^3.24.4",
+    "deepmerge-ts": "^8.0.2"
   }
 }
