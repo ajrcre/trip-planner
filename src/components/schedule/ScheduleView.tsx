@@ -166,6 +166,9 @@ export function ScheduleView({ trip }: ScheduleViewProps) {
   }, [trip.id])
 
   useEffect(() => {
+    // fetchSchedule only sets state after awaiting the request, so this does not
+    // cascade renders; the rule cannot see through the async boundary.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchSchedule()
   }, [fetchSchedule])
 

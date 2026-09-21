@@ -375,7 +375,14 @@ export function ItineraryMap({
 }: ItineraryMapProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [showAllDays, setShowAllDays] = useState(false)
-  const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null)
+  const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(activeActivityId)
+  // Follow the hovered/active activity, while still letting a marker click
+  // select something else until the active activity changes again.
+  const [prevActiveActivityId, setPrevActiveActivityId] = useState(activeActivityId)
+  if (activeActivityId !== prevActiveActivityId) {
+    setPrevActiveActivityId(activeActivityId)
+    setSelectedMarkerId(activeActivityId)
+  }
   const online = useOnlineStatus()
 
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_CLIENT_KEY ?? ""
@@ -478,10 +485,6 @@ export function ItineraryMap({
     },
     [onMarkerClick]
   )
-
-  useEffect(() => {
-    setSelectedMarkerId(activeActivityId)
-  }, [activeActivityId])
 
   if (!apiKey) {
     return (

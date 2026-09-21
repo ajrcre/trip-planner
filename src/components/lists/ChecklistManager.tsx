@@ -180,6 +180,9 @@ export function ChecklistManager({
   }, [apiBase, apiPath])
 
   useEffect(() => {
+    // fetchItems only sets state after awaiting the request, so this does not
+    // cascade renders; the rule cannot see through the async boundary.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchItems()
   }, [fetchItems])
 

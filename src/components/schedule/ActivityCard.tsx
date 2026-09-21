@@ -228,10 +228,11 @@ export function ActivityCard({
       : undefined
   const hasDetails = !!(place && (place.address || place.phone || place.website || place.openingHours || place.googlePlaceId))
 
+  const openingHours = place?.openingHours
   const timeConflict = useMemo(() => {
-    if (!place?.openingHours) return null
-    return detectTimeConflict(activity.timeStart, activity.timeEnd, place.openingHours, scheduleDate)
-  }, [activity.timeStart, activity.timeEnd, place?.openingHours, scheduleDate])
+    if (!openingHours) return null
+    return detectTimeConflict(activity.timeStart, activity.timeEnd, openingHours, scheduleDate)
+  }, [activity.timeStart, activity.timeEnd, openingHours, scheduleDate])
 
   const name = (() => {
     if (
