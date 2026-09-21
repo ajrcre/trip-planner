@@ -24,6 +24,17 @@ const APP_CACHES = [SHELL_CACHE, STATIC_CACHE, API_CACHE]
 
 const CACHED_AT_HEADER = "sw-cached-at"
 
+/**
+ * When this worker last passed a write through to the API. Cached reads that
+ * were requested before it may predate the write, so they must not be served
+ * first: the page refetches right after saving, and answering that with the
+ * pre-save copy makes the save look like it did nothing until a reload.
+ *
+ * Held in memory only. The worker stays alive while a page is open and using
+ * it, which is the window between a save and the refetch that follows it.
+ */
+let lastWriteAt = 0
+
 /** Fallback shell for a navigation we have never cached. */
 const FALLBACK_SHELL = "/trips"
 
@@ -75,10 +86,13 @@ function rscCacheKey(url) {
   return `${url.origin}${url.pathname}?__rsc=1`
 }
 
-/** Copy a response, stamping when it was stored so the UI can show a sync age. */
-async function withCachedAt(response) {
+/**
+ * Copy a response, stamping when it was requested. The request time rather than
+ * the store time, because a slow response can land after a write it predates.
+ */
+async function withCachedAt(response, requestedAt) {
   const headers = new Headers(response.headers)
-  headers.set(CACHED_AT_HEADER, new Date().toISOString())
+  headers.set(CACHED_AT_HEADER, new Date(requestedAt).toISOString())
   return new Response(await response.blob(), {
     status: response.status,
     statusText: response.statusText,
@@ -86,10 +100,15 @@ async function withCachedAt(response) {
   })
 }
 
-async function putInCache(cacheName, key, response) {
+async function putInCache(cacheName, key, response, requestedAt = Date.now()) {
   if (!response || !response.ok) return
   const cache = await caches.open(cacheName)
-  await cache.put(key, await withCachedAt(response.clone()))
+  await cache.put(key, await withCachedAt(response.clone(), requestedAt))
+}
+
+function predatesLastWrite(cached) {
+  const cachedAt = Date.parse(cached.headers.get(CACHED_AT_HEADER) ?? "")
+  return !(cachedAt >= lastWriteAt)
 }
 
 function offlineResponse() {
@@ -114,9 +133,10 @@ async function cacheFirst(request, cacheName) {
 }
 
 async function networkFirst(request, cacheName, cacheKey = request) {
+  const requestedAt = Date.now()
   try {
     const response = await fetch(request)
-    await putInCache(cacheName, cacheKey, response)
+    await putInCache(cacheName, cacheKey, response, requestedAt)
     return response
   } catch {
     const cached = await caches.match(cacheKey, { cacheName })
@@ -134,19 +154,26 @@ async function networkFirst(request, cacheName, cacheKey = request) {
  * all along. Serving the cached copy first makes an opened trip instant, and the
  * cost is that a change someone else made lands one interaction late.
  *
+ * A copy older than this device's own last write is the exception: it goes to
+ * the network first, falling back to the copy only if that fails.
+ *
  * Returns the background fetch as `revalidation` so the caller can keep the
  * worker alive for it via `event.waitUntil`.
  */
 function staleWhileRevalidate(request, cacheName, cacheKey = request) {
+  const requestedAt = Date.now()
   // putInCache clones internally, so the response handed back is still unread.
   const network = fetch(request)
     .then(async (response) => {
-      await putInCache(cacheName, cacheKey, response)
+      await putInCache(cacheName, cacheKey, response, requestedAt)
       return response
     })
     .catch(() => null)
 
   const response = caches.match(cacheKey, { cacheName }).then(async (cached) => {
+    if (cached && predatesLastWrite(cached)) {
+      return (await network) ?? cached
+    }
     if (cached) {
       notifyRevalidating(cacheKey)
       return cached
@@ -285,12 +312,24 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const { request } = event
 
-  // Mutations must never be served or recorded from cache. The offline queue in
-  // the app handles the one write that survives a lost connection.
-  if (request.method !== "GET") return
-
   const url = new URL(request.url)
   if (url.origin !== self.location.origin) return
+
+  // Mutations must never be served or recorded from cache. The offline queue in
+  // the app handles the one write that survives a lost connection. They are
+  // still passed through here, to note when the server last answered one: even
+  // a refused write sends the page back for the server's current state.
+  if (request.method !== "GET") {
+    if (url.pathname.startsWith("/api/")) {
+      event.respondWith(
+        fetch(request).then((response) => {
+          lastWriteAt = Date.now()
+          return response
+        })
+      )
+    }
+    return
+  }
 
   if (isStaticAsset(url)) {
     event.respondWith(cacheFirst(request, STATIC_CACHE))
