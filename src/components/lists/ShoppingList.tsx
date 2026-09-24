@@ -6,6 +6,7 @@ import { getSpeechLang } from "@/components/shared/SpeakButton"
 
 const SHOPPING_CONFIG: ChecklistConfig = {
   apiPath: "shopping",
+  showQuantity: true,
   colorScheme: { primary: "green", light: "green" },
   labels: {
     progressLabel: "נקנו",

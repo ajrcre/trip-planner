@@ -147,7 +147,7 @@ export async function PUT(
   }
 
   const body = await request.json()
-  const write = resolveChecklistWrite(body, existing)
+  const write = resolveChecklistWrite(body, existing, new Date(), { stage: true })
 
   if (write.kind === "conflict") {
     return NextResponse.json(existing, { status: 409 })

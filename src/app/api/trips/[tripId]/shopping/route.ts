@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { defaultShoppingTemplate } from "@/lib/list-templates"
 import { requireTripAccess } from "@/lib/trip-access"
 import { translateShoppingItems } from "@/lib/gemini"
-import { resolveChecklistWrite } from "@/lib/checklist-write"
+import { parseQuantity, resolveChecklistWrite } from "@/lib/checklist-write"
 
 export async function GET(
   _request: Request,
@@ -107,6 +107,7 @@ export async function POST(
       tripId,
       category,
       item,
+      quantity: parseQuantity(body.quantity) ?? null,
       sortOrder: (maxSort?.sortOrder ?? -1) + 1,
     },
   })
@@ -177,7 +178,7 @@ export async function PUT(
   }
 
   const body = await request.json()
-  const write = resolveChecklistWrite(body, existing)
+  const write = resolveChecklistWrite(body, existing, new Date(), { quantity: true })
 
   if (write.kind === "conflict") {
     return NextResponse.json(existing, { status: 409 })

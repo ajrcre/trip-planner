@@ -61,6 +61,15 @@ describe("enqueueToggle", () => {
 
     expect(queueSize()).toBe(2)
   })
+
+  it("keeps only the last stage when a staged item is tapped several times", () => {
+    enqueueToggle({ ...base, itemId: "a", checked: true, stage: 1, ts: 1000 })
+    enqueueToggle({ ...base, itemId: "a", checked: true, stage: 2, ts: 2000 })
+
+    expect(readQueue()).toEqual([
+      { ...base, itemId: "a", checked: true, stage: 2, ts: 2000 },
+    ])
+  })
 })
 
 describe("applyPendingToggles", () => {
@@ -77,6 +86,14 @@ describe("applyPendingToggles", () => {
     expect(applyPendingToggles("packing", items)).toEqual([
       { id: "a", checked: true },
       { id: "b", checked: false },
+    ])
+  })
+
+  it("overlays a queued stage along with its checked value", () => {
+    enqueueToggle({ ...base, itemId: "a", checked: true, stage: 2, ts: 1000 })
+
+    expect(applyPendingToggles("packing", [{ id: "a", checked: false, stage: 0 }])).toEqual([
+      { id: "a", checked: true, stage: 2 },
     ])
   })
 
@@ -108,6 +125,20 @@ describe("replayQueue", () => {
         method: "PUT",
         body: JSON.stringify({ checked: true, ts: 1234 }),
       })
+    )
+  })
+
+  it("sends the stage instead of checked for a staged item", async () => {
+    const fetchMock = jest.fn().mockResolvedValue(res(200))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(global as any).fetch = fetchMock
+
+    enqueueToggle({ ...base, itemId: "a", checked: true, stage: 3, ts: 1234 })
+    await replayQueue()
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/trips/trip1/packing?itemId=a",
+      expect.objectContaining({ body: JSON.stringify({ stage: 3, ts: 1234 }) })
     )
   })
 

@@ -24,6 +24,8 @@ export interface QueuedToggle {
   apiPath: string
   itemId: string
   checked: boolean
+  /** Packing stage (0–3) when the tap moved a staged item; `checked` mirrors it. */
+  stage?: number
   /** When the user actually tapped, which decides who wins a conflict. */
   ts: number
 }
@@ -90,17 +92,20 @@ export function queueSize(): number {
  * still has the old checkbox values — without this overlay a tick made on the
  * plane would appear to undo itself on the next reload.
  */
-export function applyPendingToggles<T extends { id: string; checked: boolean }>(
-  apiPath: string,
-  items: T[]
-): T[] {
+export function applyPendingToggles<
+  T extends { id: string; checked: boolean; stage?: number },
+>(apiPath: string, items: T[]): T[] {
   const pending = readQueue().filter((e) => e.apiPath === apiPath)
   if (pending.length === 0) return items
 
-  const byId = new Map(pending.map((e) => [e.itemId, e.checked]))
-  return items.map((item) =>
-    byId.has(item.id) ? { ...item, checked: byId.get(item.id)! } : item
-  )
+  const byId = new Map(pending.map((e) => [e.itemId, e]))
+  return items.map((item) => {
+    const entry = byId.get(item.id)
+    if (!entry) return item
+    return entry.stage === undefined
+      ? { ...item, checked: entry.checked }
+      : { ...item, checked: entry.checked, stage: entry.stage }
+  })
 }
 
 /**
@@ -127,7 +132,11 @@ export async function replayQueue(): Promise<ReplayResult> {
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ checked: entry.checked, ts: entry.ts }),
+          body: JSON.stringify(
+            entry.stage === undefined
+              ? { checked: entry.checked, ts: entry.ts }
+              : { stage: entry.stage, ts: entry.ts }
+          ),
         }
       )
 

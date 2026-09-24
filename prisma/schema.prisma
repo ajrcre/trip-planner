@@ -372,6 +372,11 @@ model PackingItem {
   // a generic @updatedAt: renames must not count as checkbox changes.
   checkedAt DateTime?
 
+  // Packing progresses through stages: 0 = not marked, 1 = have it,
+  // 2 = in the suitcase, 3 = verified before leaving. `checked` is kept equal to
+  // `stage >= 1` so the shared checklist code and the export keep working.
+  stage Int @default(0)
+
   sortOrder Int @default(0)
 }
 
@@ -391,6 +396,9 @@ model ShoppingItem {
   // writes localName/transliteration after creation, and an @updatedAt would let
   // that reject an unrelated queued toggle.
   checkedAt DateTime?
+
+  // How many to buy. Null means no quantity was set.
+  quantity Int?
 
   sortOrder Int @default(0)
 }

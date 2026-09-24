@@ -1,4 +1,4 @@
-import { resolveChecklistWrite } from "../checklist-write"
+import { parseQuantity, resolveChecklistWrite } from "../checklist-write"
 
 const NOW = new Date("2026-08-18T12:00:00.000Z")
 
@@ -116,5 +116,107 @@ describe("resolveChecklistWrite", () => {
     )
 
     expect(write).toEqual({ kind: "apply", data: {} })
+  })
+
+  describe("packing stages", () => {
+    const staged = { stage: true }
+
+    it("sets the stage and keeps checked in step with it", () => {
+      const write = resolveChecklistWrite({ stage: 2 }, { checkedAt: null, stage: 1 }, NOW, staged)
+
+      expect(write).toEqual({
+        kind: "apply",
+        data: { stage: 2, checked: true, checkedAt: NOW },
+      })
+    })
+
+    it("clears checked when the stage goes back to 0", () => {
+      const write = resolveChecklistWrite({ stage: 0 }, { checkedAt: null, stage: 3 }, NOW, staged)
+
+      expect(write).toEqual({
+        kind: "apply",
+        data: { stage: 0, checked: false, checkedAt: NOW },
+      })
+    })
+
+    it.each([4, -1, 1.5, "2", null])("ignores an invalid stage %p", (stage) => {
+      const write = resolveChecklistWrite({ stage }, { checkedAt: null, stage: 1 }, NOW, staged)
+
+      expect(write).toEqual({ kind: "apply", data: {} })
+    })
+
+    it("ignores a stage on a list without stages", () => {
+      const write = resolveChecklistWrite({ stage: 2 }, { checkedAt: null }, NOW)
+
+      expect(write).toEqual({ kind: "apply", data: {} })
+    })
+
+    it("guards a replayed stage change like a replayed toggle", () => {
+      const tapped = new Date("2026-08-18T09:00:00.000Z")
+      const write = resolveChecklistWrite(
+        { stage: 3, ts: tapped.getTime() },
+        { checkedAt: new Date("2026-08-18T15:00:00.000Z"), stage: 1 },
+        NOW,
+        staged
+      )
+
+      expect(write).toEqual({ kind: "conflict" })
+    })
+
+    it("maps a plain tick to 'have it' without undoing later stages", () => {
+      expect(
+        resolveChecklistWrite({ checked: true }, { checkedAt: null, stage: 0 }, NOW, staged)
+      ).toEqual({ kind: "apply", data: { checked: true, stage: 1, checkedAt: NOW } })
+
+      expect(
+        resolveChecklistWrite({ checked: true }, { checkedAt: null, stage: 2 }, NOW, staged)
+      ).toEqual({ kind: "apply", data: { checked: true, stage: 2, checkedAt: NOW } })
+    })
+
+    it("maps a plain untick to stage 0", () => {
+      const write = resolveChecklistWrite({ checked: false }, { checkedAt: null, stage: 3 }, NOW, staged)
+
+      expect(write).toEqual({
+        kind: "apply",
+        data: { checked: false, stage: 0, checkedAt: NOW },
+      })
+    })
+  })
+
+  describe("quantity", () => {
+    const withQuantity = { quantity: true }
+
+    it("sets a quantity without touching checkedAt", () => {
+      const write = resolveChecklistWrite({ quantity: 3 }, { checkedAt: null }, NOW, withQuantity)
+
+      expect(write).toEqual({ kind: "apply", data: { quantity: 3 } })
+    })
+
+    it("clears the quantity with null", () => {
+      const write = resolveChecklistWrite({ quantity: null }, { checkedAt: null }, NOW, withQuantity)
+
+      expect(write).toEqual({ kind: "apply", data: { quantity: null } })
+    })
+
+    it("ignores a quantity on a list without quantities", () => {
+      const write = resolveChecklistWrite({ quantity: 3 }, { checkedAt: null }, NOW)
+
+      expect(write).toEqual({ kind: "apply", data: {} })
+    })
+  })
+})
+
+describe("parseQuantity", () => {
+  it.each([
+    [1, 1],
+    [12, 12],
+    [null, null],
+    [0, undefined],
+    [-2, undefined],
+    [1.5, undefined],
+    ["3", undefined],
+    [undefined, undefined],
+  ])("parses %p as %p", (input, expected) => {
+    expect(parseQuantity(input)).toBe(expected)
   })
 })

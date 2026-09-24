@@ -18,6 +18,7 @@ import { formatUiDateTime } from "@/lib/format-time"
 import { parseDayHours, DAY_NAMES_EN, DAY_NAMES_HE, formatAmPmTimesInText } from "@/lib/time-parsing"
 import { alternativePlanLabel } from "@/lib/activity-alternatives"
 import { formatMinutes } from "@/lib/format-duration"
+import { PACKING_STAGE_LABELS } from "@/lib/packing-stages"
 
 // A4 page: 11906 DXA wide, 1440 DXA margins each side = 9026 DXA content width
 const CONTENT_WIDTH = 9026
@@ -147,12 +148,14 @@ interface TripData {
     category: string
     item: string
     checked: boolean
+    stage?: number
     forMember?: string | null
   }>
   shoppingItems: Array<{
     category: string
     item: string
     checked: boolean
+    quantity?: number | null
   }>
   todoItems: Array<{
     category: string
@@ -650,7 +653,8 @@ function buildPackingSection(items: TripData["packingItems"]): Paragraph[] {
       })
     )
     for (const item of catItems) {
-      const checkmark = item.checked ? "[x]" : "[ ]"
+      const stageLabel = item.stage ? PACKING_STAGE_LABELS[item.stage - 1] : undefined
+      const checkmark = stageLabel ? `[${stageLabel}]` : item.checked ? "[x]" : "[ ]"
       const memberPart = item.forMember ? ` (${item.forMember})` : ""
       paragraphs.push(
         new Paragraph({
@@ -694,6 +698,7 @@ function buildShoppingSection(items: TripData["shoppingItems"]): Paragraph[] {
     )
     for (const item of catItems) {
       const checkmark = item.checked ? "[x]" : "[ ]"
+      const quantityPart = item.quantity ? ` ×${item.quantity}` : ""
       paragraphs.push(
         new Paragraph({
           bidirectional: true,
@@ -701,7 +706,7 @@ function buildShoppingSection(items: TripData["shoppingItems"]): Paragraph[] {
           bullet: { level: 0 },
           children: [
             new TextRun({
-              text: `${checkmark} ${item.item}`,
+              text: `${checkmark} ${item.item}${quantityPart}`,
               rightToLeft: true,
             }),
           ],

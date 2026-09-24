@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { SpeakButton } from "@/components/shared/SpeakButton"
+import { StageChip, type StageDef } from "./StageChip"
+import { QuantityInput } from "./QuantityInput"
 import { useOnlineStatus } from "@/hooks/useOnlineStatus"
 import {
   applyPendingToggles,
@@ -16,6 +18,8 @@ interface ChecklistItem {
   categoryId?: string
   item: string
   checked: boolean
+  stage?: number
+  quantity?: number | null
   forMember?: string | null
   localName?: string | null
   transliteration?: string | null
@@ -43,6 +47,14 @@ export interface ChecklistConfig {
    * packing/shopping default) categories are derived from the items themselves.
    */
   managedCategories?: boolean
+  /**
+   * Ordered marks an item moves through instead of a single checkbox (packing:
+   * have it → in the suitcase → verified). An item counts as done only at the
+   * last stage.
+   */
+  stages?: StageDef[]
+  /** Show a quantity field on each item (shopping). */
+  showQuantity?: boolean
   colorScheme: { primary: string; light: string }
   labels: {
     progressLabel: string
@@ -122,7 +134,7 @@ export function ChecklistManager({
   const online = useOnlineStatus()
   const [syncNotice, setSyncNotice] = useState<ReplayResult | null>(null)
 
-  const { apiPath, labels, managedCategories } = config
+  const { apiPath, labels, managedCategories, stages, showQuantity } = config
   const colors = useColorClasses(config.colorScheme)
   const apiBase = `/api/trips/${tripId}/${apiPath}`
 
@@ -218,24 +230,32 @@ export function ChecklistManager({
     }
   }
 
-  const toggleItem = async (item: ChecklistItem) => {
-    const checked = !item.checked
+  // A checkbox tap is `{ checked }`; a staged list sends `{ stage }` and
+  // `checked` follows it. Both share the optimistic update and offline queue.
+  const markItem = async (item: ChecklistItem, stage?: number) => {
+    const checked = stage === undefined ? !item.checked : stage > 0
     const ts = Date.now()
 
     setItems((prev) =>
-      prev.map((i) => (i.id === item.id ? { ...i, checked } : i))
+      prev.map((i) =>
+        i.id === item.id
+          ? stage === undefined ? { ...i, checked } : { ...i, checked, stage }
+          : i
+      )
     )
 
     const rollback = () =>
       setItems((prev) =>
-        prev.map((i) => (i.id === item.id ? { ...i, checked: item.checked } : i))
+        prev.map((i) =>
+          i.id === item.id ? { ...i, checked: item.checked, stage: item.stage } : i
+        )
       )
 
     try {
       const res = await fetch(`${apiBase}?itemId=${item.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ checked }),
+        body: JSON.stringify(stage === undefined ? { checked } : { stage }),
       })
       // A real server refusal, with a connection: the optimistic tick was wrong.
       if (!res.ok) rollback()
@@ -245,11 +265,32 @@ export function ChecklistManager({
       // time, which is what decides the winner if someone else edits the same
       // item before this replays.
       if (!navigator.onLine) {
-        enqueueToggle({ tripId, apiPath, itemId: item.id, checked, ts })
+        enqueueToggle({ tripId, apiPath, itemId: item.id, checked, stage, ts })
         return
       }
       console.error("Failed to toggle item:", error)
       rollback()
+    }
+  }
+
+  // Quantity edits need a connection, like renames: only checkbox-style marks
+  // are queued offline.
+  const setQuantity = async (item: ChecklistItem, quantity: number | null) => {
+    setItems((prev) =>
+      prev.map((i) => (i.id === item.id ? { ...i, quantity } : i))
+    )
+    try {
+      const res = await fetch(`${apiBase}?itemId=${item.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quantity }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    } catch (error) {
+      console.error("Failed to update quantity:", error)
+      setItems((prev) =>
+        prev.map((i) => (i.id === item.id ? { ...i, quantity: item.quantity } : i))
+      )
     }
   }
 
@@ -404,8 +445,12 @@ export function ChecklistManager({
         items: catItems,
       }))
 
+  // On a staged list an item is done only once it reaches the last stage.
+  const isDone = (item: ChecklistItem) =>
+    stages ? (item.stage ?? 0) >= stages.length : item.checked
+
   const totalItems = items.length
-  const checkedItems = items.filter((i) => i.checked).length
+  const checkedItems = items.filter(isDone).length
 
   if (loading) {
     return (
@@ -459,25 +504,52 @@ export function ChecklistManager({
 
       {/* Progress bar */}
       <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
-        <div className="mb-2 flex items-center justify-between text-sm">
-          <span className="font-medium">
-            {checkedItems}/{totalItems} {labels.progressLabel}
-          </span>
-          <span className="text-zinc-500">
-            {totalItems > 0
-              ? Math.round((checkedItems / totalItems) * 100)
-              : 0}
-            %
-          </span>
-        </div>
-        <div className="h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
-          <div
-            className={`h-full rounded-full ${colors.progressBar} transition-all duration-300`}
-            style={{
-              width: `${totalItems > 0 ? (checkedItems / totalItems) * 100 : 0}%`,
-            }}
-          />
-        </div>
+        {stages ? (
+          <div className="flex flex-col gap-2">
+            {stages.map((stageDef, index) => {
+              const reached = items.filter((i) => (i.stage ?? 0) > index).length
+              const pct = totalItems > 0 ? (reached / totalItems) * 100 : 0
+              return (
+                <div key={stageDef.label} className="flex items-center gap-3 text-sm">
+                  <span className="w-20 shrink-0 font-medium">
+                    <span aria-hidden>{stageDef.icon}</span> {stageDef.label}
+                  </span>
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+                    <div
+                      className={`h-full rounded-full ${stageDef.barClass} transition-all duration-300`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <span className="w-12 shrink-0 text-left text-xs text-zinc-500">
+                    {reached}/{totalItems}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <>
+            <div className="mb-2 flex items-center justify-between text-sm">
+              <span className="font-medium">
+                {checkedItems}/{totalItems} {labels.progressLabel}
+              </span>
+              <span className="text-zinc-500">
+                {totalItems > 0
+                  ? Math.round((checkedItems / totalItems) * 100)
+                  : 0}
+                %
+              </span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+              <div
+                className={`h-full rounded-full ${colors.progressBar} transition-all duration-300`}
+                style={{
+                  width: `${totalItems > 0 ? (checkedItems / totalItems) * 100 : 0}%`,
+                }}
+              />
+            </div>
+          </>
+        )}
         {translation && (
           <div className="mt-3 flex justify-end">
             <button
@@ -501,7 +573,7 @@ export function ChecklistManager({
       {/* Category sections */}
       {sections.map(({ category: categoryRow, name: category, items: categoryItems }) => {
         const isOpen = openCategories.has(category)
-        const catChecked = categoryItems.filter((i) => i.checked).length
+        const catChecked = categoryItems.filter(isDone).length
         const catTotal = categoryItems.length
 
         return (
@@ -527,6 +599,7 @@ export function ChecklistManager({
                   </svg>
                   <span className="text-xs text-zinc-500">
                     {catChecked}/{catTotal}
+                    {stages && ` ${stages[stages.length - 1].label}`}
                   </span>
                 </div>
                 <h3 className="font-semibold">{category}</h3>
@@ -564,16 +637,18 @@ export function ChecklistManager({
                         </svg>
                       </button>
                       <label className="flex flex-1 cursor-pointer items-center gap-3">
-                        <input
-                          type="checkbox"
-                          checked={item.checked}
-                          onChange={() => toggleItem(item)}
-                          className={`h-4 w-4 rounded border-zinc-300 ${colors.checkbox}`}
-                        />
+                        {!stages && (
+                          <input
+                            type="checkbox"
+                            checked={item.checked}
+                            onChange={() => markItem(item)}
+                            className={`h-4 w-4 rounded border-zinc-300 ${colors.checkbox}`}
+                          />
+                        )}
                         <div className="flex-1">
                           <span
                             className={`text-sm transition-all ${
-                              item.checked
+                              isDone(item)
                                 ? "text-zinc-400 line-through"
                                 : "text-zinc-800 dark:text-zinc-200"
                             }`}
@@ -605,6 +680,21 @@ export function ChecklistManager({
                           </span>
                         )}
                       </label>
+                      {showQuantity && (
+                        <QuantityInput
+                          key={`${item.id}:${item.quantity ?? ""}`}
+                          quantity={item.quantity}
+                          disabled={!online}
+                          onSave={(quantity) => setQuantity(item, quantity)}
+                        />
+                      )}
+                      {stages && (
+                        <StageChip
+                          stage={item.stage ?? 0}
+                          stages={stages}
+                          onChange={(stage) => markItem(item, stage)}
+                        />
+                      )}
                       {translation && item.localName && (
                         <SpeakButton
                           text={item.localName}
