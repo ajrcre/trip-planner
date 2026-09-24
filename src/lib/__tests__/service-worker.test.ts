@@ -65,11 +65,16 @@ class FakeNetwork {
   }
 }
 
-function loadWorker() {
+/**
+ * Pass the caches and clock of an earlier worker to simulate the browser
+ * stopping an idle worker and starting a fresh one: memory is gone, Cache
+ * Storage is not.
+ */
+function loadWorker(previous?: { caches: FakeCacheStorage; now: () => number }) {
   const listeners = new Map<string, Listener>()
   const network = new FakeNetwork()
-  const caches = new FakeCacheStorage()
-  let now = 1_000
+  const caches = previous?.caches ?? new FakeCacheStorage()
+  let now = previous?.now() ?? 1_000
 
   const context = vm.createContext({
     self: {
@@ -116,6 +121,8 @@ function loadWorker() {
 
   return {
     network,
+    caches,
+    now: () => now,
     request,
     getText,
     tick: () => (now += 1_000),
@@ -203,5 +210,37 @@ describe("service worker API caching", () => {
 
     sw.network.bodies.set(LIST, '["someone else"]')
     expect((await sw.getText(LIST)).text).toBe('["saved"]')
+  })
+
+  describe("after the browser restarts an idle worker", () => {
+    async function saveThenRestart() {
+      const first = loadWorker()
+      first.network.bodies.set(LIST, '["old"]')
+      await (await first.getText(LIST)).background
+      first.tick()
+      const save = await first.request(LIST, { method: "PUT", body: "{}" })
+      await save.background
+      first.tick()
+
+      const sw = loadWorker(first)
+      sw.tick()
+      return sw
+    }
+
+    it("still shows the result of a save made before the restart", async () => {
+      // Mobile browsers stop a worker after ~30s idle. Its in-memory record of
+      // the save went with it, so the pre-save copy used to come back first.
+      const sw = await saveThenRestart()
+      sw.network.bodies.set(LIST, '["saved"]')
+
+      expect((await sw.getText(LIST)).text).toBe('["saved"]')
+    })
+
+    it("falls back to the cached copy when offline", async () => {
+      const sw = await saveThenRestart()
+      sw.network.offline = true
+
+      expect((await sw.getText(LIST)).text).toBe('["old"]')
+    })
   })
 })

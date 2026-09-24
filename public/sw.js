@@ -20,7 +20,8 @@ const CACHE_VERSION = "v2"
 const SHELL_CACHE = `trip-planner-shell-${CACHE_VERSION}`
 const STATIC_CACHE = `trip-planner-static-${CACHE_VERSION}`
 const API_CACHE = `trip-planner-api-${CACHE_VERSION}`
-const APP_CACHES = [SHELL_CACHE, STATIC_CACHE, API_CACHE]
+const META_CACHE = `trip-planner-meta-${CACHE_VERSION}`
+const APP_CACHES = [SHELL_CACHE, STATIC_CACHE, API_CACHE, META_CACHE]
 
 const CACHED_AT_HEADER = "sw-cached-at"
 
@@ -30,10 +31,35 @@ const CACHED_AT_HEADER = "sw-cached-at"
  * first: the page refetches right after saving, and answering that with the
  * pre-save copy makes the save look like it did nothing until a reload.
  *
- * Held in memory only. The worker stays alive while a page is open and using
- * it, which is the window between a save and the refetch that follows it.
+ * Also kept in Cache Storage, because memory alone does not last long enough:
+ * mobile browsers stop a worker after about 30 seconds idle. Someone packing
+ * pauses between taps far longer than that, and the restarted worker used to
+ * serve the pre-save list when they came back to it.
  */
 let lastWriteAt = 0
+
+const LAST_WRITE_KEY = "/__sw/last-write-at"
+
+/** Restores lastWriteAt once per worker start, before the first read needs it. */
+const lastWriteLoaded = (async () => {
+  try {
+    const stored = await caches.match(LAST_WRITE_KEY, { cacheName: META_CACHE })
+    const value = stored ? Number(await stored.text()) : 0
+    if (Number.isFinite(value)) lastWriteAt = Math.max(lastWriteAt, value)
+  } catch {
+    // Without the stored value this worker behaves as it did before persisting.
+  }
+})()
+
+async function recordWrite() {
+  lastWriteAt = Date.now()
+  try {
+    const cache = await caches.open(META_CACHE)
+    await cache.put(LAST_WRITE_KEY, new Response(String(lastWriteAt)))
+  } catch {
+    // Memory still covers this worker's lifetime.
+  }
+}
 
 /** Fallback shell for a navigation we have never cached. */
 const FALLBACK_SHELL = "/trips"
@@ -171,6 +197,7 @@ function staleWhileRevalidate(request, cacheName, cacheKey = request) {
     .catch(() => null)
 
   const response = caches.match(cacheKey, { cacheName }).then(async (cached) => {
+    if (cached) await lastWriteLoaded
     if (cached && predatesLastWrite(cached)) {
       return (await network) ?? cached
     }
@@ -321,12 +348,17 @@ self.addEventListener("fetch", (event) => {
   // a refused write sends the page back for the server's current state.
   if (request.method !== "GET") {
     if (url.pathname.startsWith("/api/")) {
+      const response = fetch(request)
       event.respondWith(
-        fetch(request).then((response) => {
+        response.then((res) => {
+          // Memory is updated before the page gets its answer, so the refetch
+          // that follows a save is never served stale. The durable copy is
+          // kept alive by waitUntil below.
           lastWriteAt = Date.now()
-          return response
+          return res
         })
       )
+      event.waitUntil(response.then(recordWrite, () => {}))
     }
     return
   }
